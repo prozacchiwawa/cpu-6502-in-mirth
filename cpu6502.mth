@@ -9018,25 +9018,29 @@ data M6502InstLabel
 end
 
 data M6502DataSource
-  DS_DUMMY : -- M6502DataSource
-  DS_A : -- M6502DataSource
-  DS_X : -- M6502DataSource
-  DS_Y : -- M6502DataSource
-  DS_F : -- M6502DataSource
-  DS_Stack : -- M6502DataSource
+  ds_DUMMY : -- M6502DataSource
+  ds_A : -- M6502DataSource
+  ds_X : -- M6502DataSource
+  ds_Y : -- M6502DataSource
+  ds_F : -- M6502DataSource
+  ds_S : -- M6502DataSource
+  ds_Stack : -- M6502DataSource
+  ds_Imm16 : -- M6502DataSource
 end
 
 data M6502DataDest
-  DD_DUMMY : -- M6502DataDest
-  DD_A : -- M6502DataDest
-  DD_X : -- M6502DataDest
-  DD_Y : -- M6502DataDest
-  DD_F : -- M6502DataDest
-  DD_Stack : -- M6502DataDest
+  dd_DUMMY : -- M6502DataDest
+  dd_A : -- M6502DataDest
+  dd_X : -- M6502DataDest
+  dd_Y : -- M6502DataDest
+  dd_F : -- M6502DataDest
+  dd_S : -- M6502DataDest
+  dd_Stack : -- M6502DataDest
+  dd_PC : -- M6502DataDest
 end
 
 data M6502Instruction
-  DI : M6502InstLabel M6502DataSource M6502DataDest -- M6502Instruction
+  di : M6502InstLabel M6502DataSource M6502DataDest -- M6502Instruction
 end
 
 data M6502State
@@ -9066,51 +9070,52 @@ data M6502InstExec
   ie : R8 M6502InstLabel M6502DataSource M6502DataDest M6502State -- M6502InstExec
 end
 
+nopInstruction : M6502InstExec -- M6502Effect M6502State
+nopInstruction = match(ie -> dip(drop drop drop) waitInterrupt swap)
+
 group1Instruction : M6502InstExec -- M6502Effect M6502State
-group1Instruction = match(ie -> dip(drop drop drop) waitInterrupt swap) 
+group1Instruction = nopInstruction
 
 group2Instruction : M6502InstExec -- M6502Effect M6502State
-group2Instruction = match(ie -> dip(drop drop drop) waitInterrupt swap) 
+group2Instruction = nopInstruction
 
 group0Instruction : M6502InstExec -- M6502Effect M6502State
-group0Instruction = match(ie -> dip(drop drop drop) waitInterrupt swap) 
+group0Instruction = nopInstruction
 
 zpInstruction : M6502InstExec -- M6502Effect M6502State
-zpInstruction = match(ie -> dip(drop drop drop) waitInterrupt swap) 
+zpInstruction = nopInstruction
 
 # No group 3
 
 conditionalBranch : M6502InstExec -- M6502Effect M6502State
-conditionalBranch = match(ie -> dip(drop drop drop) waitInterrupt swap)
+conditionalBranch = nopInstruction
 
 brkInstruction : M6502InstExec -- M6502Effect M6502State
-brkInstruction = match(ie -> dip(drop drop drop) waitInterrupt swap)
+brkInstruction = nopInstruction
 jsrInstruction : M6502InstExec -- M6502Effect M6502State
-jsrInstruction = match(ie -> dip(drop drop drop) waitInterrupt swap)
+jsrInstruction = nopInstruction
 rtiInstruction : M6502InstExec -- M6502Effect M6502State
-rtiInstruction = match(ie -> dip(drop drop drop) waitInterrupt swap)
+rtiInstruction = nopInstruction
 rtsInstruction : M6502InstExec -- M6502Effect M6502State
-rtsInstruction = match(ie -> dip(drop drop drop) waitInterrupt swap)
+rtsInstruction = nopInstruction
 
 phxInstruction : M6502InstExec -- M6502Effect M6502State
-phxInstruction = match(ie -> dip(drop drop drop) waitInterrupt swap)
+phxInstruction = nopInstruction
 plxInstruction : M6502InstExec -- M6502Effect M6502State
-plxInstruction = match(ie -> dip(drop drop drop) waitInterrupt swap)
+plxInstruction = nopInstruction
 deyInstruction : M6502InstExec -- M6502Effect M6502State
-deyInstruction = match(ie -> dip(drop drop drop) waitInterrupt swap)
+deyInstruction = nopInstruction
 tayInstruction : M6502InstExec -- M6502Effect M6502State
-tayInstruction = match(ie -> dip(drop drop drop) waitInterrupt swap)
+tayInstruction = nopInstruction
 inxInstruction : M6502InstExec -- M6502Effect M6502State
-inxInstruction = match(ie -> dip(drop drop drop) waitInterrupt swap)
+inxInstruction = nopInstruction
 
 # CLx STx
 flgInstruction : M6502InstExec -- M6502Effect M6502State
-flgInstruction = match(ie -> dip(drop drop drop) waitInterrupt swap)
+flgInstruction = nopInstruction
 
-nopInstruction : M6502InstExec -- M6502Effect M6502State
-nopInstruction = match(ie -> dip(drop drop drop) waitInterrupt swap)
 waiInstruction : M6502InstExec -- M6502Effect M6502State
-waiInstruction = match(ie -> dip(drop drop drop) waitInterrupt swap)
+waiInstruction = nopInstruction
 
 data M6502InstCategory
   g1 : -- M6502InstCategory
@@ -9135,6 +9140,9 @@ data M6502InstCategory
   nopI : -- M6502InstCategory
   waiI : -- M6502InstCategory
 end
+
+v8eq : R8 Int -- Bool
+v8eq = dip(match(v8 -> )) eq
 
 r8Matches : R8 Int Int Int -- R8 Bool
 r8Matches = dip(dip(dip(dup match(v8 -> )) /) %) eq
@@ -9162,8 +9170,55 @@ categorizeInstruction = 1 256 0x20 r8Matches if(jsrI,
   1 3   1    r8Matches if(g1,
   1 3   0    r8Matches if(g0,nopI)))))))))))))))))))))
 
+g0Opcode : R8 -- R8 M6502InstLabel
+g0Opcode = 32 8 0 r8Matches if(ORA,
+  32 8 1 r8Matches if(AND,
+  32 8 2 r8Matches if(EOR,
+  32 8 3 r8Matches if(ADC,
+  32 8 4 r8Matches if(STx,
+  32 8 5 r8Matches if(LDx,
+  38 8 6 r8Matches if(CMx, SBC)))))))
+
+decodeG0Inst : R8 -- R8 M6502Instruction
+decodeG0Inst = NOP ds_DUMMY dd_DUMMY di
+
+decodeG1Inst : R8 -- R8 M6502Instruction
+decodeG1Inst = NOP ds_DUMMY dd_DUMMY di
+
+decodeG2Inst : R8 -- R8 M6502Instruction
+decodeG2Inst = NOP ds_DUMMY dd_DUMMY di
+
+decodeCBranchInst : R8 -- R8 M6502Instruction
+decodeCBranchInst = NOP ds_DUMMY dd_DUMMY di
+
+decodeFlgInst : R8 -- R8 M6502Instruction
+decodeFlgInst = NOP ds_DUMMY dd_DUMMY di
+
+decodeInstruction : R8 M6502InstCategory -- R8 M6502Instruction
+decodeInstruction = match(g0 -> decodeG0Inst,
+  g1 -> decodeG1Inst,
+  g2 -> decodeG2Inst, 
+  cbranch -> decodeCBranchInst,
+  flgI -> decodeFlgInst,
+  brkI -> BRK ds_DUMMY dd_DUMMY di,
+  dexI -> DEx ds_X dd_X di,
+  tsxI -> Txy ds_S dd_X di,
+  taxI -> Txy ds_A dd_X di,
+  txsI -> Txy ds_X dd_S di,
+  txaI -> Txy ds_X dd_A di,
+  inyI -> INx ds_Y dd_Y di,
+  tayI -> Txy ds_A dd_Y di,
+  deyI -> DEx ds_Y dd_Y di,
+  plxI -> dup 0x28 v8eq if(PLf ds_Stack dd_F, PLf ds_Stack dd_A) di,
+  phxI -> dup 0x08 v8eq if(PLf ds_F dd_Stack, PLf ds_A dd_Stack) di,
+  rtsI -> RTS ds_DUMMY dd_DUMMY di,
+  rtiI -> RTI ds_DUMMY dd_DUMMY di,
+  jsrI -> JSR ds_Imm16 dd_PC di,
+  nopI -> NOP ds_DUMMY dd_DUMMY di,
+  waiI -> WAI ds_DUMMY dd_DUMMY di)
+
 # runInstruction : R8 M6502State -- M6502Effect M6502State
-# runInstruction = swap match(v8 ->) dup 3 % categorizeInstruction
+# runInstruction = swap categorizeInstruction match(
 
 runOneStep : R8 M6502State -- M6502Effect M6502State
 runOneStep = swap drop waitInterrupt swap
