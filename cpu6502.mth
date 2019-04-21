@@ -9026,6 +9026,7 @@ data M6502DataSource
   ds_S : -- M6502DataSource
   ds_zp : -- M6502DataSource
   ds_zpX : -- M6502DataSource
+  ds_zpY : -- M6502DataSource
   ds_indexedIndirectX : -- M6502DataSource
   ds_indirectIndexedY : -- M6502DataSource
   ds_Stack : -- M6502DataSource
@@ -9045,6 +9046,7 @@ data M6502DataDest
   dd_S : -- M6502DataDest
   dd_zp : -- M6502DataDest
   dd_zpX : -- M6502DataDest
+  dd_zpY : -- M6502DataDest
   dd_Abs : -- M6502DataDest
   dd_AbsX : -- M6502DataDest
   dd_AbsY : -- M6502DataDest
@@ -9256,8 +9258,69 @@ decodeG1Inst = g1Opcode swap g1Source swap g1Dest swap drop di
 0xa1 v8 decodeG1Inst == LDx ds_indexedIndirectX dd_A di
 0xb1 v8 decodeG1Inst == LDx ds_indirectIndexedY dd_A di
 
-decodeG2Inst : R8 -- R8 M6502Instruction
-decodeG2Inst = NOP ds_DUMMY dd_DUMMY di
+g2Opcode : R8 -- R8 M6502InstLabel
+g2Opcode = 32 8 0 r8Matches if(ASL,
+  32 8 1 r8Matches if(ROL,
+  32 8 2 r8Matches if(LSR,
+  32 8 3 r8Matches if(ROR,
+  32 8 4 r8Matches if(STx,
+  32 8 5 r8Matches if(LDx,
+  32 8 6 r8Matches if(DEx, INx)))))))
+
+isSTXInstruction : R8 -- Bool
+isSTXInstruction = match(v8 -> ) 0x86 matchesI 0x96 matchesI 0x8e matchesI drop or or
+
+isLDXInstruction : R8 -- Bool
+isLDXInstruction = match(v8 -> ) 0xa2 matchesI 0xa6 matchesI 0xae matchesI 0xb6 matchesI 0xbe matchesI drop or or or or
+
+useYRegister : R8 -- Bool
+useYRegister = dup isSTXInstruction swap isLDXInstruction or
+  
+g2SourceNormal : R8 -- R8 M6502DataSource
+g2SourceNormal = 4 8 0 r8Matches if(ds_Imm8,
+    4 8 1 r8Matches if(ds_zp,
+    4 8 2 r8Matches if(ds_A,
+    4 8 3 r8Matches if(ds_Abs,
+    4 8 4 r8Matches if(ds_DUMMY,
+    4 8 5 r8Matches if(dup useYRegister if(ds_zpY,ds_zpX),
+    4 8 6 r8Matches if(ds_DUMMY,dup useYRegister if(ds_AbsY,ds_AbsX))))))))
+
+g2Source : R8 -- R8 M6502DataSource
+g2Source = dup isSTXInstruction if(ds_X, g2SourceNormal)
+
+g2DestNormal : R8 -- R8 M6502DataDest
+g2DestNormal = 4 8 0 r8Matches if(dd_DUMMY,
+    4 8 1 r8Matches if(dd_zp,
+    4 8 2 r8Matches if(dd_A,
+    4 8 3 r8Matches if(dd_Abs, 
+    4 8 4 r8Matches if(dd_DUMMY,
+    4 8 5 r8Matches if(dup useYRegister if(dd_zpY,dd_zpX),
+    4 8 6 r8Matches if(dd_DUMMY,dup useYRegister if(dd_AbsY,dd_AbsX))))))))
+
+g2Dest : R8 -- R8 M6502DataDest
+g2Dest = dup isLDXInstruction if(dd_X, g2DestNormal)
+
+decodeG2Inst : R8 -- M6502Instruction
+decodeG2Inst = g2Opcode swap g2Source swap g2Dest swap drop di
+
+0xa2 v8 decodeG2Inst == LDx ds_Imm8 dd_X di
+0x06 v8 decodeG2Inst == ASL ds_zp dd_zp di
+0x26 v8 decodeG2Inst == ROL ds_zp dd_zp di
+0x46 v8 decodeG2Inst == LSR ds_zp dd_zp di
+0x66 v8 decodeG2Inst == ROR ds_zp dd_zp di
+0x86 v8 decodeG2Inst == STx ds_X dd_zp di
+0xa6 v8 decodeG2Inst == LDx ds_zp dd_X di
+0xc6 v8 decodeG2Inst == DEx ds_zp dd_zp di
+0xe6 v8 decodeG2Inst == INx ds_zp dd_zp di
+
+0x0a v8 decodeG2Inst == ASL ds_A dd_A di
+0x0e v8 decodeG2Inst == ASL ds_Abs dd_Abs di
+
+0xae v8 decodeG2Inst == LDx ds_Abs dd_X di
+0xb6 v8 decodeG2Inst == LDx ds_zpY dd_X di
+0xbe v8 decodeG2Inst == LDx ds_AbsY dd_X di
+
+0x96 v8 decodeG2Inst == STx ds_X dd_zpY di
 
 # decodeG0Inst : R8 -- R8 M6502Instruction
 # decodeG0Inst = NOP ds_DUMMY dd_DUMMY di
