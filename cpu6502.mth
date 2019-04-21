@@ -9247,6 +9247,15 @@ decodeG0Inst = g0Opcode swap g0Source swap g0Dest swap drop di
 0x81 v8 decodeG0Inst == STx ds_A dd_indexedIndirectX di
 0x91 v8 decodeG0Inst == STx ds_A dd_indirectIndexedY di
 
+0xa9 v8 decodeG0Inst == LDx ds_Imm8 dd_A di
+0xa5 v8 decodeG0Inst == LDx ds_zp dd_A di
+0xb5 v8 decodeG0Inst == LDx ds_zpX dd_A di
+0xad v8 decodeG0Inst == LDx ds_Abs dd_A di
+0xbd v8 decodeG0Inst == LDx ds_AbsX dd_A di
+0xb9 v8 decodeG0Inst == LDx ds_AbsY dd_A di
+0xa1 v8 decodeG0Inst == LDx ds_indexedIndirectX dd_A di
+0xb1 v8 decodeG0Inst == LDx ds_indirectIndexedY dd_A di
+
 # decodeG1Inst : R8 -- R8 M6502Instruction
 # decodeG1Inst = NOP ds_DUMMY dd_DUMMY di
 
