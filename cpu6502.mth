@@ -8992,9 +8992,12 @@ data M6502InstLabel
   AND : -- M6502InstLabel
   ASL : -- M6502InstLabel
   BRK : -- M6502InstLabel
+  BIT : -- M6502InstLabel
   Bxx : -- M6502InstLabel
   CLx : -- M6502InstLabel
-  CMx : -- M6502InstLabel
+  CMP : -- M6502InstLabel
+  CPX : -- M6502InstLabel
+  CPY : -- M6502InstLabel
   DEx : -- M6502InstLabel
   EOR : -- M6502InstLabel
   INx : -- M6502InstLabel
@@ -9033,6 +9036,7 @@ data M6502DataSource
   ds_Imm8 : -- M6502DataSource
   ds_Imm16 : -- M6502DataSource
   ds_Abs : -- M6502DataSource
+  ds_indirectAbs : -- M6502DataSource          
   ds_AbsX : -- M6502DataSource
   ds_AbsY : -- M6502DataSource
 end
@@ -9194,7 +9198,7 @@ g1Opcode = 32 8 0 r8Matches if(ORA,
   32 8 3 r8Matches if(ADC,
   32 8 4 r8Matches if(STx,
   32 8 5 r8Matches if(LDx,
-  38 8 6 r8Matches if(CMx, SBC)))))))
+  32 8 6 r8Matches if(CMP, SBC)))))))
 
 matchesI : Int Int -- Bool Int
 matchesI = dip(dup) eq swap
@@ -9322,8 +9326,61 @@ decodeG2Inst = g2Opcode swap g2Source swap g2Dest swap drop di
 
 0x96 v8 decodeG2Inst == STx ds_X dd_zpY di
 
-# decodeG0Inst : R8 -- R8 M6502Instruction
-# decodeG0Inst = NOP ds_DUMMY dd_DUMMY di
+g0Opcode : R8 -- R8 M6502InstLabel
+g0Opcode = 32 8 0 r8Matches if(NOP,
+  32 8 1 r8Matches if(BIT,
+  32 8 2 r8Matches if(JMP,
+  32 8 3 r8Matches if(JMP,
+  32 8 4 r8Matches if(STx,
+  32 8 5 r8Matches if(LDx,
+  32 8 6 r8Matches if(CPY, CPX)))))))
+
+g0Source : R8 -- R8 M6502DataSource
+g0Source = 32 8 4 r8Matches if(ds_Y,
+    32 8 3 r8Matches if(ds_indirectAbs,
+    4 8 0 r8Matches if(ds_Imm8,
+    4 8 1 r8Matches if(ds_zp,
+    4 8 2 r8Matches if(ds_DUMMY,
+    4 8 3 r8Matches if(ds_Abs,
+    4 8 4 r8Matches if(ds_DUMMY,
+    4 8 5 r8Matches if(ds_zpX,
+    4 8 6 r8Matches if(ds_DUMMY,ds_AbsX)))))))))
+
+g0Dest : R8 -- R8 M6502DataDest
+g0Dest = 32 8 5 r8Matches if(dd_Y,
+    32 8 6 r8Matches if(dd_DUMMY,
+    32 8 7 r8Matches if(dd_DUMMY,
+    32 8 2 r8Matches if(dd_PC,
+    32 8 3 r8Matches if(dd_PC,
+    4 8 0 r8Matches if(dd_DUMMY,
+    4 8 1 r8Matches if(dd_zp,
+    4 8 2 r8Matches if(dd_A,
+    4 8 3 r8Matches if(dd_Abs, 
+    4 8 4 r8Matches if(dd_DUMMY,
+    4 8 5 r8Matches if(dd_zpX,
+    4 8 6 r8Matches if(dd_DUMMY,dd_AbsX))))))))))))
+
+decodeG0Inst : R8 -- M6502Instruction
+decodeG0Inst = g0Opcode swap g0Source swap g0Dest swap drop di
+
+0xa0 v8 decodeG0Inst == LDx ds_Imm8 dd_Y di
+0xc0 v8 decodeG0Inst == CPY ds_Imm8 dd_DUMMY di
+0xe0 v8 decodeG0Inst == CPX ds_Imm8 dd_DUMMY di
+0x24 v8 decodeG0Inst == BIT ds_zp dd_zp di
+0x84 v8 decodeG0Inst == STx ds_Y dd_zp di
+0xa4 v8 decodeG0Inst == LDx ds_zp dd_Y di
+0xc4 v8 decodeG0Inst == CPY ds_zp dd_DUMMY di
+0xe4 v8 decodeG0Inst == CPX ds_zp dd_DUMMY di
+0x2c v8 decodeG0Inst == BIT ds_Abs dd_Abs di
+0x4c v8 decodeG0Inst == JMP ds_Abs dd_PC di
+0x6c v8 decodeG0Inst == JMP ds_indirectAbs dd_PC di
+0x8c v8 decodeG0Inst == STx ds_Y dd_Abs di
+0xac v8 decodeG0Inst == LDx ds_Abs dd_Y di
+0xcc v8 decodeG0Inst == CPY ds_Abs dd_DUMMY di
+0xec v8 decodeG0Inst == CPX ds_Abs dd_DUMMY di
+0x94 v8 decodeG0Inst == STx ds_Y dd_zpX di
+0xb4 v8 decodeG0Inst == LDx ds_zpX dd_Y di
+0xbc v8 decodeG0Inst == LDx ds_AbsX dd_Y di
 
 # decodeCBranchInst : R8 -- R8 M6502Instruction
 # decodeCBranchInst = NOP ds_DUMMY dd_DUMMY di
