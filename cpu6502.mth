@@ -9024,8 +9024,16 @@ data M6502DataSource
   ds_Y : -- M6502DataSource
   ds_F : -- M6502DataSource
   ds_S : -- M6502DataSource
+  ds_zp : -- M6502DataSource
+  ds_zpX : -- M6502DataSource
+  ds_indexedIndirectX : -- M6502DataSource
+  ds_indirectIndexedY : -- M6502DataSource
   ds_Stack : -- M6502DataSource
+  ds_Imm8 : -- M6502DataSource
   ds_Imm16 : -- M6502DataSource
+  ds_Abs : -- M6502DataSource
+  ds_AbsX : -- M6502DataSource
+  ds_AbsY : -- M6502DataSource
 end
 
 data M6502DataDest
@@ -9035,7 +9043,14 @@ data M6502DataDest
   dd_Y : -- M6502DataDest
   dd_F : -- M6502DataDest
   dd_S : -- M6502DataDest
+  dd_zp : -- M6502DataDest
+  dd_zpX : -- M6502DataDest
+  dd_Abs : -- M6502DataDest
+  dd_AbsX : -- M6502DataDest
+  dd_AbsY : -- M6502DataDest
   dd_Stack : -- M6502DataDest
+  dd_indexedIndirectX : -- M6502DataDest
+  dd_indirectIndexedY : -- M6502DataDest
   dd_PC : -- M6502DataDest
 end
 
@@ -9179,43 +9194,93 @@ g0Opcode = 32 8 0 r8Matches if(ORA,
   32 8 5 r8Matches if(LDx,
   38 8 6 r8Matches if(CMx, SBC)))))))
 
-decodeG0Inst : R8 -- R8 M6502Instruction
-decodeG0Inst = NOP ds_DUMMY dd_DUMMY di
+matchesI : Int Int -- Bool Int
+matchesI = dip(dup) eq swap
 
-decodeG1Inst : R8 -- R8 M6502Instruction
-decodeG1Inst = NOP ds_DUMMY dd_DUMMY di
+isSTAInstruction : R8 -- Bool
+isSTAInstruction = match(v8 -> ) 0x81 matchesI 0x85 matchesI 0x8d matchesI 0x91 matchesI 0x95 matchesI 0x99 matchesI 0x9d matchesI drop or or or or or or
 
-decodeG2Inst : R8 -- R8 M6502Instruction
-decodeG2Inst = NOP ds_DUMMY dd_DUMMY di
+isLDAInstruction : R8 -- Bool
+isLDAInstruction = match(v8 -> ) 0xa9 matchesI 0xa5 matchesI 0xb5 matchesI 0xad matchesI 0xbd matchesI 0xb9 matchesI drop or or or or or
 
-decodeCBranchInst : R8 -- R8 M6502Instruction
-decodeCBranchInst = NOP ds_DUMMY dd_DUMMY di
+g0SourceNormal : R8 -- R8 M6502DataSource
+g0SourceNormal = 4 8 0 r8Matches if(ds_indexedIndirectX,
+    4 8 1 r8Matches if(ds_zp,
+    4 8 2 r8Matches if(ds_Imm8,
+    4 8 3 r8Matches if(ds_Abs,
+    4 8 4 r8Matches if(ds_indirectIndexedY,
+    4 8 5 r8Matches if(ds_zpX,
+    4 8 6 r8Matches if(ds_AbsY,ds_AbsX)))))))
 
-decodeFlgInst : R8 -- R8 M6502Instruction
-decodeFlgInst = NOP ds_DUMMY dd_DUMMY di
+g0Source : R8 -- R8 M6502DataSource
+g0Source = dup isSTAInstruction if(ds_A, g0SourceNormal)
 
-decodeInstruction : R8 M6502InstCategory -- R8 M6502Instruction
-decodeInstruction = match(g0 -> decodeG0Inst,
-  g1 -> decodeG1Inst,
-  g2 -> decodeG2Inst, 
-  cbranch -> decodeCBranchInst,
-  flgI -> decodeFlgInst,
-  brkI -> BRK ds_DUMMY dd_DUMMY di,
-  dexI -> DEx ds_X dd_X di,
-  tsxI -> Txy ds_S dd_X di,
-  taxI -> Txy ds_A dd_X di,
-  txsI -> Txy ds_X dd_S di,
-  txaI -> Txy ds_X dd_A di,
-  inyI -> INx ds_Y dd_Y di,
-  tayI -> Txy ds_A dd_Y di,
-  deyI -> DEx ds_Y dd_Y di,
-  plxI -> dup 0x28 v8eq if(PLf ds_Stack dd_F, PLf ds_Stack dd_A) di,
-  phxI -> dup 0x08 v8eq if(PLf ds_F dd_Stack, PLf ds_A dd_Stack) di,
-  rtsI -> RTS ds_DUMMY dd_DUMMY di,
-  rtiI -> RTI ds_DUMMY dd_DUMMY di,
-  jsrI -> JSR ds_Imm16 dd_PC di,
-  nopI -> NOP ds_DUMMY dd_DUMMY di,
-  waiI -> WAI ds_DUMMY dd_DUMMY di)
+g0DestNormal : R8 -- R8 M6502DataDest
+g0DestNormal = 4 8 0 r8Matches if(dd_indexedIndirectX,
+    4 8 1 r8Matches if(dd_zp,
+    4 8 2 r8Matches if(dd_DUMMY,
+    4 8 3 r8Matches if(dd_Abs, 
+    4 8 4 r8Matches if(dd_indirectIndexedY,
+    4 8 5 r8Matches if(dd_zpX,
+    4 8 6 r8Matches if(dd_AbsY,dd_AbsX)))))))
+
+g0Dest : R8 -- R8 M6502DataDest
+g0Dest = dup isSTAInstruction if(g0DestNormal, dd_A)
+
+decodeG0Inst : R8 -- M6502Instruction
+decodeG0Inst = g0Opcode swap g0Source swap g0Dest swap drop di
+
+0x29 v8 decodeG0Inst == AND ds_Imm8 dd_A di
+0x25 v8 decodeG0Inst == AND ds_zp dd_A di
+0x35 v8 decodeG0Inst == AND ds_zpX dd_A di
+0x2d v8 decodeG0Inst == AND ds_Abs dd_A di
+0x3d v8 decodeG0Inst == AND ds_AbsX dd_A di
+0x39 v8 decodeG0Inst == AND ds_AbsY dd_A di
+0x21 v8 decodeG0Inst == AND ds_indexedIndirectX dd_A di
+0x31 v8 decodeG0Inst == AND ds_indirectIndexedY dd_A di
+
+0x85 v8 decodeG0Inst == STx ds_A dd_zp di
+0x95 v8 decodeG0Inst == STx ds_A dd_zpX di
+0x8d v8 decodeG0Inst == STx ds_A dd_Abs di
+0x9d v8 decodeG0Inst == STx ds_A dd_AbsX di
+0x99 v8 decodeG0Inst == STx ds_A dd_AbsY di
+0x81 v8 decodeG0Inst == STx ds_A dd_indexedIndirectX di
+0x91 v8 decodeG0Inst == STx ds_A dd_indirectIndexedY di
+
+# decodeG1Inst : R8 -- R8 M6502Instruction
+# decodeG1Inst = NOP ds_DUMMY dd_DUMMY di
+
+# decodeG2Inst : R8 -- R8 M6502Instruction
+# decodeG2Inst = NOP ds_DUMMY dd_DUMMY di
+
+# decodeCBranchInst : R8 -- R8 M6502Instruction
+# decodeCBranchInst = NOP ds_DUMMY dd_DUMMY di
+
+# decodeFlgInst : R8 -- R8 M6502Instruction
+# decodeFlgInst = NOP ds_DUMMY dd_DUMMY di
+
+# decodeInstruction : R8 M6502InstCategory -- R8 M6502Instruction
+# decodeInstruction = match(g0 -> decodeG0Inst,
+#   g1 -> decodeG1Inst,
+#   g2 -> decodeG2Inst, 
+#   cbranch -> decodeCBranchInst,
+#   flgI -> decodeFlgInst,
+#   brkI -> BRK ds_DUMMY dd_DUMMY di,
+#   dexI -> DEx ds_X dd_X di,
+#   tsxI -> Txy ds_S dd_X di,
+#   taxI -> Txy ds_A dd_X di,
+#   txsI -> Txy ds_X dd_S di,
+#   txaI -> Txy ds_X dd_A di,
+#   inyI -> INx ds_Y dd_Y di,
+#   tayI -> Txy ds_A dd_Y di,
+#   deyI -> DEx ds_Y dd_Y di,
+#   plxI -> dup 0x28 v8eq if(PLf ds_Stack dd_F, PLf ds_Stack dd_A) di,
+#   phxI -> dup 0x08 v8eq if(PLf ds_F dd_Stack, PLf ds_A dd_Stack) di,
+#   rtsI -> RTS ds_DUMMY dd_DUMMY di,
+#   rtiI -> RTI ds_DUMMY dd_DUMMY di,
+#   jsrI -> JSR ds_Imm16 dd_PC di,
+#   nopI -> NOP ds_DUMMY dd_DUMMY di,
+#   waiI -> WAI ds_DUMMY dd_DUMMY di)
 
 # runInstruction : R8 M6502State -- M6502Effect M6502State
 # runInstruction = swap categorizeInstruction match(
