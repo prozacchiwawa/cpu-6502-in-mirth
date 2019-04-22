@@ -9437,8 +9437,6 @@ decodeInstruction = match(g0 -> decodeG0Inst,
   nopI -> NOP ds_DUMMY dd_DUMMY di,
   waiI -> WAI ds_DUMMY dd_DUMMY di)
   
-0x69 v8 categorizeInstruction swap drop == g1
-0x69 v8 g1 decodeInstruction == ADC ds_Imm8 dd_A di 
 0x69 v8 categorizeInstruction decodeInstruction == ADC ds_Imm8 dd_A di
 0x65 v8 categorizeInstruction decodeInstruction == ADC ds_zp dd_A di
 0x75 v8 categorizeInstruction decodeInstruction == ADC ds_zpX dd_A di
@@ -9447,6 +9445,112 @@ decodeInstruction = match(g0 -> decodeG0Inst,
 0x79 v8 categorizeInstruction decodeInstruction == ADC ds_AbsY dd_A di
 0x61 v8 categorizeInstruction decodeInstruction == ADC ds_indexedIndirectX dd_A di
 0x71 v8 categorizeInstruction decodeInstruction == ADC ds_indirectIndexedY dd_A di
+
+0x29 v8 categorizeInstruction decodeInstruction == AND ds_Imm8 dd_A di
+0x25 v8 categorizeInstruction decodeInstruction == AND ds_zp dd_A di
+0x35 v8 categorizeInstruction decodeInstruction == AND ds_zpX dd_A di
+0x2d v8 categorizeInstruction decodeInstruction == AND ds_Abs dd_A di
+0x3d v8 categorizeInstruction decodeInstruction == AND ds_AbsX dd_A di
+0x39 v8 categorizeInstruction decodeInstruction == AND ds_AbsY dd_A di
+0x21 v8 categorizeInstruction decodeInstruction == AND ds_indexedIndirectX dd_A di
+0x31 v8 categorizeInstruction decodeInstruction == AND ds_indirectIndexedY dd_A di
+
+0xc9 v8 categorizeInstruction decodeInstruction == CMP ds_Imm8 dd_A di
+0xc5 v8 categorizeInstruction decodeInstruction == CMP ds_zp dd_A di
+0xd5 v8 categorizeInstruction decodeInstruction == CMP ds_zpX dd_A di
+0xcd v8 categorizeInstruction decodeInstruction == CMP ds_Abs dd_A di
+0xdd v8 categorizeInstruction decodeInstruction == CMP ds_AbsX dd_A di
+0xd9 v8 categorizeInstruction decodeInstruction == CMP ds_AbsY dd_A di
+0xc1 v8 categorizeInstruction decodeInstruction == CMP ds_indexedIndirectX dd_A di
+0xd1 v8 categorizeInstruction decodeInstruction == CMP ds_indirectIndexedY dd_A di
+
+0x49 v8 categorizeInstruction decodeInstruction == EOR ds_Imm8 dd_A di
+0x45 v8 categorizeInstruction decodeInstruction == EOR ds_zp dd_A di
+0x55 v8 categorizeInstruction decodeInstruction == EOR ds_zpX dd_A di
+0x4d v8 categorizeInstruction decodeInstruction == EOR ds_Abs dd_A di
+0x5d v8 categorizeInstruction decodeInstruction == EOR ds_AbsX dd_A di
+0x59 v8 categorizeInstruction decodeInstruction == EOR ds_AbsY dd_A di
+0x41 v8 categorizeInstruction decodeInstruction == EOR ds_indexedIndirectX dd_A di
+0x51 v8 categorizeInstruction decodeInstruction == EOR ds_indirectIndexedY dd_A di
+
+0xa9 v8 categorizeInstruction decodeInstruction == LDx ds_Imm8 dd_A di
+0xa5 v8 categorizeInstruction decodeInstruction == LDx ds_zp dd_A di
+0xb5 v8 categorizeInstruction decodeInstruction == LDx ds_zpX dd_A di
+0xad v8 categorizeInstruction decodeInstruction == LDx ds_Abs dd_A di
+0xbd v8 categorizeInstruction decodeInstruction == LDx ds_AbsX dd_A di
+0xb9 v8 categorizeInstruction decodeInstruction == LDx ds_AbsY dd_A di
+0xa1 v8 categorizeInstruction decodeInstruction == LDx ds_indexedIndirectX dd_A di
+0xb1 v8 categorizeInstruction decodeInstruction == LDx ds_indirectIndexedY dd_A di
+
+0x09 v8 categorizeInstruction decodeInstruction == ORA ds_Imm8 dd_A di
+0x05 v8 categorizeInstruction decodeInstruction == ORA ds_zp dd_A di
+0x15 v8 categorizeInstruction decodeInstruction == ORA ds_zpX dd_A di
+0x0d v8 categorizeInstruction decodeInstruction == ORA ds_Abs dd_A di
+0x1d v8 categorizeInstruction decodeInstruction == ORA ds_AbsX dd_A di
+0x19 v8 categorizeInstruction decodeInstruction == ORA ds_AbsY dd_A di
+0x01 v8 categorizeInstruction decodeInstruction == ORA ds_indexedIndirectX dd_A di
+0x11 v8 categorizeInstruction decodeInstruction == ORA ds_indirectIndexedY dd_A di
+
+0xe9 v8 categorizeInstruction decodeInstruction == SBC ds_Imm8 dd_A di
+0xe5 v8 categorizeInstruction decodeInstruction == SBC ds_zp dd_A di
+0xf5 v8 categorizeInstruction decodeInstruction == SBC ds_zpX dd_A di
+0xed v8 categorizeInstruction decodeInstruction == SBC ds_Abs dd_A di
+0xfd v8 categorizeInstruction decodeInstruction == SBC ds_AbsX dd_A di
+0xf9 v8 categorizeInstruction decodeInstruction == SBC ds_AbsY dd_A di
+0xe1 v8 categorizeInstruction decodeInstruction == SBC ds_indexedIndirectX dd_A di
+0xf1 v8 categorizeInstruction decodeInstruction == SBC ds_indirectIndexedY dd_A di
+
+0x85 v8 categorizeInstruction decodeInstruction == STx ds_A dd_zp di
+0x95 v8 categorizeInstruction decodeInstruction == STx ds_A dd_zpX di
+0x8d v8 categorizeInstruction decodeInstruction == STx ds_A dd_Abs di
+0x9d v8 categorizeInstruction decodeInstruction == STx ds_A dd_AbsX di
+0x99 v8 categorizeInstruction decodeInstruction == STx ds_A dd_AbsY di
+0x81 v8 categorizeInstruction decodeInstruction == STx ds_A dd_indexedIndirectX di
+0x91 v8 categorizeInstruction decodeInstruction == STx ds_A dd_indirectIndexedY di
+
+0x06 v8 categorizeInstruction decodeInstruction == ASL ds_zp dd_zp di
+0x0a v8 categorizeInstruction decodeInstruction == ASL ds_A dd_A di
+0x0e v8 categorizeInstruction decodeInstruction == ASL ds_Abs dd_Abs di
+0x16 v8 categorizeInstruction decodeInstruction == ASL ds_zpX dd_zpX di
+0x1e v8 categorizeInstruction decodeInstruction == ASL ds_AbsX dd_AbsX di
+
+0x26 v8 categorizeInstruction decodeInstruction == ROL ds_zp dd_zp di
+0x2a v8 categorizeInstruction decodeInstruction == ROL ds_A dd_A di
+0x2e v8 categorizeInstruction decodeInstruction == ROL ds_Abs dd_Abs di
+0x36 v8 categorizeInstruction decodeInstruction == ROL ds_zpX dd_zpX di
+0x3e v8 categorizeInstruction decodeInstruction == ROL ds_AbsX dd_AbsX di
+
+0x46 v8 categorizeInstruction decodeInstruction == LSR ds_zp dd_zp di
+0x4a v8 categorizeInstruction decodeInstruction == LSR ds_A dd_A di
+0x4e v8 categorizeInstruction decodeInstruction == LSR ds_Abs dd_Abs di
+0x56 v8 categorizeInstruction decodeInstruction == LSR ds_zpX dd_zpX di
+0x5e v8 categorizeInstruction decodeInstruction == LSR ds_AbsX dd_AbsX di
+
+0x66 v8 categorizeInstruction decodeInstruction == ROR ds_zp dd_zp di
+0x6a v8 categorizeInstruction decodeInstruction == ROR ds_A dd_A di
+0x6e v8 categorizeInstruction decodeInstruction == ROR ds_Abs dd_Abs di
+0x76 v8 categorizeInstruction decodeInstruction == ROR ds_zpX dd_zpX di
+0x7e v8 categorizeInstruction decodeInstruction == ROR ds_AbsX dd_AbsX di
+
+0x86 v8 categorizeInstruction decodeInstruction == STx ds_X dd_zp di
+0x8e v8 categorizeInstruction decodeInstruction == STx ds_X dd_Abs di
+0x96 v8 categorizeInstruction decodeInstruction == STx ds_X dd_zpY di
+
+0xc6 v8 categorizeInstruction decodeInstruction == DEx ds_zp dd_zp di
+0xce v8 categorizeInstruction decodeInstruction == DEx ds_Abs dd_Abs di
+0xd6 v8 categorizeInstruction decodeInstruction == DEx ds_zpX dd_zpX di
+0xde v8 categorizeInstruction decodeInstruction == DEx ds_AbsX dd_AbsX di
+
+0xe6 v8 categorizeInstruction decodeInstruction == INx ds_zp dd_zp di
+0xee v8 categorizeInstruction decodeInstruction == INx ds_Abs dd_Abs di
+0xf6 v8 categorizeInstruction decodeInstruction == INx ds_zpX dd_zpX di
+0xfe v8 categorizeInstruction decodeInstruction == INx ds_AbsX dd_AbsX di
+
+0xa2 v8 categorizeInstruction decodeInstruction == LDx ds_Imm8 dd_X di
+0xa6 v8 categorizeInstruction decodeInstruction == LDx ds_zp dd_X di
+0xae v8 categorizeInstruction decodeInstruction == LDx ds_Abs dd_X di
+0xb6 v8 categorizeInstruction decodeInstruction == LDx ds_zpY dd_X di
+0xbe v8 categorizeInstruction decodeInstruction == LDx ds_AbsY dd_X di
 
 0x98 v8 categorizeInstruction decodeInstruction == Txy ds_Y dd_A di
 
