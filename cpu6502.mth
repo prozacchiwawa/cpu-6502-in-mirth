@@ -9041,7 +9041,6 @@ data M6502DataSource
   ds_indirectIndexedY : -- M6502DataSource
   ds_Stack : -- M6502DataSource
   ds_Imm8 : -- M6502DataSource
-  ds_Imm16 : -- M6502DataSource
   ds_Abs : -- M6502DataSource
   ds_indirectAbs : -- M6502DataSource          
   ds_AbsX : -- M6502DataSource
@@ -9159,6 +9158,7 @@ data M6502InstCategory
   deyI : -- M6502InstCategory
   tayI : -- M6502InstCategory
   inyI : -- M6502InstCategory
+  inxI : -- M6502InstCategory
   txaI : -- M6502InstCategory
   txsI : -- M6502InstCategory
   taxI : -- M6502InstCategory
@@ -9181,21 +9181,24 @@ categorizeInstruction = 1 256 0x20 r8Matches if(jsrI,
   1 256 0x08 r8Matches if(phxI,    
   1 256 0x48 r8Matches if(phxI,    
   1 256 0x28 r8Matches if(plxI,
-  1 256 0x60 r8Matches if(plxI,
+  1 256 0x68 r8Matches if(plxI,
   1 256 0x88 r8Matches if(deyI,
   1 256 0xa8 r8Matches if(tayI,
   1 256 0xc8 r8Matches if(inyI,
+  1 256 0xe8 r8Matches if(inxI,
   1 256 0x8a r8Matches if(txaI,
   1 256 0x9a r8Matches if(txsI,
   1 256 0xaa r8Matches if(taxI,
   1 256 0xba r8Matches if(tsxI,
   1 256 0xca r8Matches if(dexI,
+  1 256 0xea r8Matches if(nopI,
+  1 256 0xcb r8Matches if(waiI,
   1 256 0    r8Matches if(brkI,
   1 32  24   r8Matches if(flgI,
   1 32  16   r8Matches if(cbranch,
   1 4   2    r8Matches if(g2,
   1 4   1    r8Matches if(g1,
-  1 4   0    r8Matches if(g0,nopI)))))))))))))))))))))
+  1 4   0    r8Matches if(g0,nopI))))))))))))))))))))))))
 
 g1Opcode : R8 -- R8 M6502InstLabel
 g1Opcode = 32 8 0 r8Matches if(ORA,
@@ -9420,23 +9423,25 @@ decodeInstruction = match(g0 -> decodeG0Inst,
   g2 -> decodeG2Inst, 
   cbranch -> decodeCBranchInst,
   flgI -> decodeFlgInst,
-  brkI -> BRK ds_DUMMY dd_DUMMY di,
-  dexI -> DEx ds_X dd_X di,
-  tsxI -> Txy ds_S dd_X di,
-  taxI -> Txy ds_A dd_X di,
-  txsI -> Txy ds_X dd_S di,
-  txaI -> Txy ds_X dd_A di,
-  inyI -> INx ds_Y dd_Y di,
-  tayI -> Txy ds_A dd_Y di,
-  deyI -> DEx ds_Y dd_Y di,
+  brkI -> drop BRK ds_DUMMY dd_DUMMY di,
+  dexI -> drop DEx ds_X dd_X di,
+  tsxI -> drop Txy ds_S dd_X di,
+  taxI -> drop Txy ds_A dd_X di,
+  txsI -> drop Txy ds_X dd_S di,
+  txaI -> drop Txy ds_X dd_A di,
+  inyI -> drop INx ds_Y dd_Y di,
+  inxI -> drop INx ds_X dd_X di,
+  tayI -> drop Txy ds_A dd_Y di,
+  deyI -> drop DEx ds_Y dd_Y di,
   plxI -> 0x28 v8eq if(PLf ds_Stack dd_F, PLf ds_Stack dd_A) di,
   phxI -> 0x08 v8eq if(PHf ds_F dd_Stack, PHf ds_A dd_Stack) di,
-  rtsI -> RTS ds_DUMMY dd_DUMMY di,
-  rtiI -> RTI ds_DUMMY dd_DUMMY di,
-  jsrI -> JSR ds_Imm16 dd_DUMMY di,
-  nopI -> NOP ds_DUMMY dd_DUMMY di,
-  waiI -> WAI ds_DUMMY dd_DUMMY di)
-  
+  rtsI -> drop RTS ds_DUMMY dd_DUMMY di,
+  rtiI -> drop RTI ds_DUMMY dd_DUMMY di,
+  jsrI -> drop JSR ds_Abs dd_DUMMY di,
+  nopI -> drop NOP ds_DUMMY dd_DUMMY di,
+  waiI -> drop WAI ds_DUMMY dd_DUMMY di)
+
+# http://nparker.llx.com/a2/opcodes.html
 0x69 v8 categorizeInstruction decodeInstruction == ADC ds_Imm8 dd_A di
 0x65 v8 categorizeInstruction decodeInstruction == ADC ds_zp dd_A di
 0x75 v8 categorizeInstruction decodeInstruction == ADC ds_zpX dd_A di
@@ -9579,7 +9584,45 @@ decodeInstruction = match(g0 -> decodeG0Inst,
 0xe4 v8 categorizeInstruction decodeInstruction == CPX ds_zp dd_DUMMY di
 0xec v8 categorizeInstruction decodeInstruction == CPX ds_Abs dd_DUMMY di
 
+0x10 v8 categorizeInstruction decodeInstruction == 0 false Bxx ds_DUMMY dd_DUMMY di
+0x30 v8 categorizeInstruction decodeInstruction == 0 true Bxx ds_DUMMY dd_DUMMY di
+0x50 v8 categorizeInstruction decodeInstruction == 1 false Bxx ds_DUMMY dd_DUMMY di
+0x70 v8 categorizeInstruction decodeInstruction == 1 true Bxx ds_DUMMY dd_DUMMY di
+0x90 v8 categorizeInstruction decodeInstruction == 2 false Bxx ds_DUMMY dd_DUMMY di
+0xb0 v8 categorizeInstruction decodeInstruction == 2 true Bxx ds_DUMMY dd_DUMMY di
+0xd0 v8 categorizeInstruction decodeInstruction == 3 false Bxx ds_DUMMY dd_DUMMY di
+0xf0 v8 categorizeInstruction decodeInstruction == 3 true Bxx ds_DUMMY dd_DUMMY di
+
+0x00 v8 categorizeInstruction decodeInstruction == BRK ds_DUMMY dd_DUMMY di
+0x20 v8 categorizeInstruction decodeInstruction == JSR ds_Abs dd_DUMMY di
+0x40 v8 categorizeInstruction decodeInstruction == RTI ds_DUMMY dd_DUMMY di
+0x60 v8 categorizeInstruction decodeInstruction == RTS ds_DUMMY dd_DUMMY di
+
+0x08 v8 categorizeInstruction decodeInstruction == PHf ds_F dd_Stack di
+0x48 v8 categorizeInstruction decodeInstruction == PHf ds_A dd_Stack di
+0x28 v8 categorizeInstruction decodeInstruction == PLf ds_Stack dd_F di
+0x68 v8 categorizeInstruction decodeInstruction == PLf ds_Stack dd_A di
+0x88 v8 categorizeInstruction decodeInstruction == DEx ds_Y dd_Y di
+0xa8 v8 categorizeInstruction decodeInstruction == Txy ds_A dd_Y di
+0xc8 v8 categorizeInstruction decodeInstruction == INx ds_Y dd_Y di
+0xe8 v8 categorizeInstruction decodeInstruction == INx ds_X dd_X di
+
+0x18 v8 categorizeInstruction decodeInstruction == carry CLx ds_F dd_F di
+0x38 v8 categorizeInstruction decodeInstruction == carry SEx ds_F dd_F di
+0x58 v8 categorizeInstruction decodeInstruction == interrupt CLx ds_F dd_F di
+0x78 v8 categorizeInstruction decodeInstruction == interrupt SEx ds_F dd_F di
 0x98 v8 categorizeInstruction decodeInstruction == Txy ds_Y dd_A di
+0xb8 v8 categorizeInstruction decodeInstruction == overflow CLx ds_F dd_F di
+0xd8 v8 categorizeInstruction decodeInstruction == direction CLx ds_F dd_F di
+0xf8 v8 categorizeInstruction decodeInstruction == direction SEx ds_F dd_F di
+
+0x8a v8 categorizeInstruction decodeInstruction == Txy ds_X dd_A di
+0x9a v8 categorizeInstruction decodeInstruction == Txy ds_X dd_S di
+0xaa v8 categorizeInstruction decodeInstruction == Txy ds_A dd_X di
+0xba v8 categorizeInstruction decodeInstruction == Txy ds_S dd_X di
+0xca v8 categorizeInstruction decodeInstruction == DEx ds_X dd_X di
+0xea v8 categorizeInstruction decodeInstruction == NOP ds_DUMMY dd_DUMMY di
+0xcb v8 categorizeInstruction decodeInstruction == WAI ds_DUMMY dd_DUMMY di
 
 runOneStep : R8 M6502State -- M6502Effect M6502State
 runOneStep = swap drop waitInterrupt swap
