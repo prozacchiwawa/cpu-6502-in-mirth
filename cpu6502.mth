@@ -9398,21 +9398,23 @@ decodeCBranchOp = 1 256 0x10 r8Matches if(0 false Bxx,
     1 256 0x70 r8Matches if(1 true Bxx,
     1 256 0x90 r8Matches if(2 false Bxx,
     1 256 0xb0 r8Matches if(2 true Bxx,
-    1 256 0xb0 r8Matches if(3 false Bxx,3 true Bxx)))))))
+    1 256 0xd0 r8Matches if(3 false Bxx,3 true Bxx)))))))
 
-decodeCBranchInst : R8 -- R8 M6502Instruction
-decodeCBranchInst = decodeCBranchOp ds_DUMMY dd_DUMMY di
+decodeCBranchInst : R8 -- M6502Instruction
+decodeCBranchInst = decodeCBranchOp swap drop ds_DUMMY dd_DUMMY di
 
-decodeFlgInst : R8 -- R8 M6502Instruction
+0xd0 v8 decodeCBranchInst == 3 false Bxx ds_DUMMY dd_DUMMY di
+
+decodeFlgInst : R8 -- M6502Instruction
 decodeFlgInst = 1 256 0x98 r8Matches if(Txy ds_Y dd_A di,
     1 256 0x18 r8Matches if(carry CLx ds_F dd_F di,
     1 256 0x38 r8Matches if(carry SEx ds_F dd_F di,
     1 256 0x58 r8Matches if(interrupt CLx ds_F dd_F di,
     1 256 0x78 r8Matches if(interrupt SEx ds_F dd_F di,
     1 256 0xb8 r8Matches if(overflow CLx ds_F dd_F di,
-    1 256 0xd8 r8Matches if(direction CLx ds_F dd_F di,direction SEx ds_F dd_F di)))))))
+    1 256 0xd8 r8Matches if(direction CLx ds_F dd_F di,direction SEx ds_F dd_F di))))))) swap drop
 
-decodeInstruction : R8 M6502InstCategory -- R8 M6502Instruction
+decodeInstruction : R8 M6502InstCategory -- M6502Instruction
 decodeInstruction = match(g0 -> decodeG0Inst,
   g1 -> decodeG1Inst,
   g2 -> decodeG2Inst, 
@@ -9427,8 +9429,8 @@ decodeInstruction = match(g0 -> decodeG0Inst,
   inyI -> INx ds_Y dd_Y di,
   tayI -> Txy ds_A dd_Y di,
   deyI -> DEx ds_Y dd_Y di,
-  plxI -> dup 0x28 v8eq if(PLf ds_Stack dd_F, PLf ds_Stack dd_A) di,
-  phxI -> dup 0x08 v8eq if(PHf ds_F dd_Stack, PHf ds_A dd_Stack) di,
+  plxI -> 0x28 v8eq if(PLf ds_Stack dd_F, PLf ds_Stack dd_A) di,
+  phxI -> 0x08 v8eq if(PHf ds_F dd_Stack, PHf ds_A dd_Stack) di,
   rtsI -> RTS ds_DUMMY dd_DUMMY di,
   rtiI -> RTI ds_DUMMY dd_DUMMY di,
   jsrI -> JSR ds_Imm16 dd_PC di,
@@ -9436,19 +9438,17 @@ decodeInstruction = match(g0 -> decodeG0Inst,
   waiI -> WAI ds_DUMMY dd_DUMMY di)
   
 0x69 v8 categorizeInstruction swap drop == g1
-# 0x69 v8 categorizeInstruction decodeInstruction swap drop == ADC ds_Imm8 dd_A di
-# 0x65 v8 categorizeInstruction decodeInstruction swap drop == ADC ds_zp dd_A di
-# 0x75 v8 categorizeInstruction decodeInstruction swap drop == ADC ds_zpX dd_A di
-# 0x6d v8 categorizeInstruction decodeInstruction swap drop == ADC ds_Abs dd_A di
-# 0x7d v8 categorizeInstruction decodeInstruction swap drop == ADC ds_AbsX dd_A di
-# 0x79 v8 categorizeInstruction decodeInstruction swap drop == ADC ds_AbsY dd_A di
-# 0x61 v8 categorizeInstruction decodeInstruction swap drop == ADC ds_indexedIndirectX dd_indexedIndirectX di
-# 0x71 v8 categorizeInstruction decodeInstruction swap drop == ADC ds_indirectIndexedY dd_indirectIndexedY di
+0x69 v8 g1 decodeInstruction == ADC ds_Imm8 dd_A di 
+0x69 v8 categorizeInstruction decodeInstruction == ADC ds_Imm8 dd_A di
+0x65 v8 categorizeInstruction decodeInstruction == ADC ds_zp dd_A di
+0x75 v8 categorizeInstruction decodeInstruction == ADC ds_zpX dd_A di
+0x6d v8 categorizeInstruction decodeInstruction == ADC ds_Abs dd_A di
+0x7d v8 categorizeInstruction decodeInstruction == ADC ds_AbsX dd_A di
+0x79 v8 categorizeInstruction decodeInstruction == ADC ds_AbsY dd_A di
+0x61 v8 categorizeInstruction decodeInstruction == ADC ds_indexedIndirectX dd_A di
+0x71 v8 categorizeInstruction decodeInstruction == ADC ds_indirectIndexedY dd_A di
 
-0x98 v8 categorizeInstruction decodeInstruction swap drop == Txy ds_Y dd_A di
-
-# runInstruction : R8 M6502State -- M6502Effect M6502State
-# runInstruction = swap categorizeInstruction match(
+0x98 v8 categorizeInstruction decodeInstruction == Txy ds_Y dd_A di
 
 runOneStep : R8 M6502State -- M6502Effect M6502State
 runOneStep = swap drop waitInterrupt swap
