@@ -9064,7 +9064,6 @@ data M6502DataDest
   dd_Stack : -- M6502DataDest
   dd_indexedIndirectX : -- M6502DataDest
   dd_indirectIndexedY : -- M6502DataDest
-  dd_PC : -- M6502DataDest
 end
 
 data M6502Instruction
@@ -9193,7 +9192,7 @@ categorizeInstruction = 1 256 0x20 r8Matches if(jsrI,
   1 256 0xca r8Matches if(dexI,
   1 256 0    r8Matches if(brkI,
   1 32  24   r8Matches if(flgI,
-  1 16  0    r8Matches if(cbranch,
+  1 32  16   r8Matches if(cbranch,
   1 4   2    r8Matches if(g2,
   1 4   1    r8Matches if(g1,
   1 4   0    r8Matches if(g0,nopI)))))))))))))))))))))
@@ -9356,18 +9355,19 @@ g0Source = 32 8 4 r8Matches if(ds_Y,
     4 8 6 r8Matches if(ds_DUMMY,ds_AbsX)))))))))
 
 g0Dest : R8 -- R8 M6502DataDest
-g0Dest = 32 8 5 r8Matches if(dd_Y,
+g0Dest = 32 8 1 r8Matches if(dd_DUMMY,
+    32 8 2 r8Matches if(dd_DUMMY,
+    32 8 3 r8Matches if(dd_DUMMY,
+    32 8 5 r8Matches if(dd_Y,
     32 8 6 r8Matches if(dd_DUMMY,
     32 8 7 r8Matches if(dd_DUMMY,
-    32 8 2 r8Matches if(dd_PC,
-    32 8 3 r8Matches if(dd_PC,
     4 8 0 r8Matches if(dd_DUMMY,
     4 8 1 r8Matches if(dd_zp,
     4 8 2 r8Matches if(dd_A,
     4 8 3 r8Matches if(dd_Abs, 
     4 8 4 r8Matches if(dd_DUMMY,
     4 8 5 r8Matches if(dd_zpX,
-    4 8 6 r8Matches if(dd_DUMMY,dd_AbsX))))))))))))
+    4 8 6 r8Matches if(dd_DUMMY,dd_AbsX)))))))))))))
 
 decodeG0Inst : R8 -- M6502Instruction
 decodeG0Inst = g0Opcode swap g0Source swap g0Dest swap drop di
@@ -9375,14 +9375,14 @@ decodeG0Inst = g0Opcode swap g0Source swap g0Dest swap drop di
 0xa0 v8 decodeG0Inst == LDx ds_Imm8 dd_Y di
 0xc0 v8 decodeG0Inst == CPY ds_Imm8 dd_DUMMY di
 0xe0 v8 decodeG0Inst == CPX ds_Imm8 dd_DUMMY di
-0x24 v8 decodeG0Inst == BIT ds_zp dd_zp di
+0x24 v8 decodeG0Inst == BIT ds_zp dd_DUMMY di
 0x84 v8 decodeG0Inst == STx ds_Y dd_zp di
 0xa4 v8 decodeG0Inst == LDx ds_zp dd_Y di
 0xc4 v8 decodeG0Inst == CPY ds_zp dd_DUMMY di
 0xe4 v8 decodeG0Inst == CPX ds_zp dd_DUMMY di
-0x2c v8 decodeG0Inst == BIT ds_Abs dd_Abs di
-0x4c v8 decodeG0Inst == JMP ds_Abs dd_PC di
-0x6c v8 decodeG0Inst == JMP ds_indirectAbs dd_PC di
+0x2c v8 decodeG0Inst == BIT ds_Abs dd_DUMMY di
+0x4c v8 decodeG0Inst == JMP ds_Abs dd_DUMMY di
+0x6c v8 decodeG0Inst == JMP ds_indirectAbs dd_DUMMY di
 0x8c v8 decodeG0Inst == STx ds_Y dd_Abs di
 0xac v8 decodeG0Inst == LDx ds_Abs dd_Y di
 0xcc v8 decodeG0Inst == CPY ds_Abs dd_DUMMY di
@@ -9433,7 +9433,7 @@ decodeInstruction = match(g0 -> decodeG0Inst,
   phxI -> 0x08 v8eq if(PHf ds_F dd_Stack, PHf ds_A dd_Stack) di,
   rtsI -> RTS ds_DUMMY dd_DUMMY di,
   rtiI -> RTI ds_DUMMY dd_DUMMY di,
-  jsrI -> JSR ds_Imm16 dd_PC di,
+  jsrI -> JSR ds_Imm16 dd_DUMMY di,
   nopI -> NOP ds_DUMMY dd_DUMMY di,
   waiI -> WAI ds_DUMMY dd_DUMMY di)
   
@@ -9551,6 +9551,33 @@ decodeInstruction = match(g0 -> decodeG0Inst,
 0xae v8 categorizeInstruction decodeInstruction == LDx ds_Abs dd_X di
 0xb6 v8 categorizeInstruction decodeInstruction == LDx ds_zpY dd_X di
 0xbe v8 categorizeInstruction decodeInstruction == LDx ds_AbsY dd_X di
+
+0x24 v8 categorizeInstruction decodeInstruction == BIT ds_zp dd_DUMMY di
+0x2c v8 categorizeInstruction decodeInstruction == BIT ds_Abs dd_DUMMY di
+
+0x4c v8 categorizeInstruction decodeInstruction == JMP ds_Abs dd_DUMMY di
+
+0x6c v8 categorizeInstruction decodeInstruction == JMP ds_indirectAbs dd_DUMMY di
+
+0x84 v8 categorizeInstruction decodeInstruction == STx ds_Y dd_zp di
+0x8c v8 categorizeInstruction decodeInstruction == STx ds_Y dd_Abs di
+0x94 v8 categorizeInstruction decodeInstruction == STx ds_Y dd_zpX di
+
+0xa0 v8 categorizeInstruction swap drop == g0
+
+0xa0 v8 categorizeInstruction decodeInstruction == LDx ds_Imm8 dd_Y di
+0xa4 v8 categorizeInstruction decodeInstruction == LDx ds_zp dd_Y di
+0xac v8 categorizeInstruction decodeInstruction == LDx ds_Abs dd_Y di
+0xb4 v8 categorizeInstruction decodeInstruction == LDx ds_zpX dd_Y di
+0xbc v8 categorizeInstruction decodeInstruction == LDx ds_AbsX dd_Y di
+
+0xc0 v8 categorizeInstruction decodeInstruction == CPY ds_Imm8 dd_DUMMY di
+0xc4 v8 categorizeInstruction decodeInstruction == CPY ds_zp dd_DUMMY di
+0xcc v8 categorizeInstruction decodeInstruction == CPY ds_Abs dd_DUMMY di
+
+0xe0 v8 categorizeInstruction decodeInstruction == CPX ds_Imm8 dd_DUMMY di
+0xe4 v8 categorizeInstruction decodeInstruction == CPX ds_zp dd_DUMMY di
+0xec v8 categorizeInstruction decodeInstruction == CPX ds_Abs dd_DUMMY di
 
 0x98 v8 categorizeInstruction decodeInstruction == Txy ds_Y dd_A di
 
