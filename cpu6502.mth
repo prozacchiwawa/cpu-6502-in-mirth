@@ -9674,6 +9674,9 @@ push6502 = dip(dup getSP6502 getR8 0x100 + dip(decSP6502)) writeByte
 numLsbMsb : R8 R8 -- Int
 numLsbMsb = match(v8 -> 256 *) swap match(v8 -> ) +
 
+numMsbLsb : R8 R8 -- Int
+numMsbLsb = match(v8 -> ) swap match(v8 -> 256 *) +
+                                    
 readByteAfterReset : R8 M6502 -- M6502 M6502Effect
 readByteAfterReset = dip(drop) resetReceiveFirstByte nextState6502 0xfffc fetchByte 
 
@@ -9681,7 +9684,7 @@ received1stByteOfAddrAfterReset : R8 M6502 -- M6502 M6502Effect
 received1stByteOfAddrAfterReset = swap resetReceiveSecondByte nextState6502 0xfffd fetchByte
 
 received2ndByteOfAddrAfterReset : R8 R8 M6502 -- M6502 M6502Effect
-received2ndByteOfAddrAfterReset = dip(numLsbMsb v16) setPC6502 fetchPCEffect
+received2ndByteOfAddrAfterReset = dip(numMsbLsb v16) setPC6502 fetchPCEffect
 
 pushPCByteLsbIntr : R8 M6502InterruptType M6502 -- M6502 M6502Effect
 pushPCByteLsbIntr = dip(dip(drop)) dup getPC6502 match(v16 ->) 256 % v8 push6502 dip(swap intrPushedPCByteLsb nextState6502)
@@ -9723,7 +9726,7 @@ havePCLsbIntr : R8 M6502 -- M6502 M6502Effect
 havePCLsbIntr = dip(intrGotPCLsb) swap nextState6502 0xffff fetchByte
 
 havePCMsbIntr : R8 R8 M6502 -- M6502 M6502Effect
-havePCMsbIntr = dip(numLsbMsb v16) setPC6502 fetchPCEffect
+havePCMsbIntr = dip(numMsbLsb v16) setPC6502 fetchPCEffect
 
 getInstructionSource : M6502Instruction -- M6502DataSource
 getInstructionSource = match(di -> drop dip(drop))
@@ -9783,7 +9786,7 @@ runOneStepDummy = drop drop emptyM6502 noEff
 runOneStep : R8 M6502 -- M6502 M6502Effect
 runOneStep = dup stateOf6502 match(reset -> readByteAfterReset,
   resetReceiveFirstByte -> received1stByteOfAddrAfterReset,
-  resetReceiveSecondByte -> drop runOneStepDummy,
+  resetReceiveSecondByte -> swap received2ndByteOfAddrAfterReset,
 
   intr -> drop runOneStepDummy,
   intrPushedPCByteLsb -> drop runOneStepDummy,
@@ -9799,11 +9802,13 @@ runOneStep = dup stateOf6502 match(reset -> readByteAfterReset,
 
 s1 : M6502 M6502Effect
 s1 = v8zero emptyM6502 runOneStep
+s1 == v16zero v8zero v8zero v8zero v8zero v8zero resetReceiveFirstByte m6502 0xfffc fetchByte
 s2 : M6502 M6502Effect
 s2 = 0xab v8 s1 drop runOneStep
-s1 == v16zero v8zero v8zero v8zero v8zero v8zero resetReceiveFirstByte m6502 0xfffc fetchByte
 s2 == v16zero v8zero v8zero v8zero v8zero v8zero 0xab v8 resetReceiveSecondByte m6502 0xfffd fetchByte
-
+s3 : M6502 M6502Effect
+s3 = 0xcd v8 s2 drop runOneStep
+s3 == 0xcdab v16 v8zero v8zero v8zero v8zero v8zero fetch m6502 0xcdab fetchByte
 # runOneStep = dup stateOf6502 match(reset -> readByteAfterReset,
 #   resetReceiveFirstByte -> received1stByteOfAddrAfterReset,
 #   resetReceiveSecondByte -> received2ndByteOfAddrAfterReset,
