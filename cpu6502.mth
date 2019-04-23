@@ -9666,7 +9666,7 @@ getFlags6502 : M6502 -- R8
 getFlags6502 = match(m6502 ->) drop dip(drop drop drop drop drop)
 
 fetchPCEffect : M6502 -- M6502 M6502Effect
-fetchPCEffect = dup fetch nextState6502 getPC6502 match(v16 ->) fetchByte
+fetchPCEffect = fetch nextState6502 dup getPC6502 match(v16 ->) fetchByte
 
 push6502 : M6502 R8 -- M6502 M6502Effect
 push6502 = dip(dup getSP6502 getR8 0x100 + dip(decSP6502)) writeByte
@@ -9717,7 +9717,7 @@ setBreakInFlagsIfRequired : M6502InterruptType M6502 R8 -- M6502InterruptType M6
 setBreakInFlagsIfRequired = dip(dip(dup)) rotl match(brk -> setBrkBit, irq ->)
 
 pushFlagsIntr : R8 M6502InterruptType M6502 -- M6502InterruptType M6502 M6502Effect
-pushFlagsIntr = dip(dip(drop)) dup getFlags6502 setBreakInFlagsIfRequired push6502 # dip(dip(drop) intrPushedFlags nextState6502)
+pushFlagsIntr = dip(dip(drop)) dup getFlags6502 setBreakInFlagsIfRequired push6502
 
 pushedFlagsIntr : R8 M6502 -- M6502 M6502Effect
 pushedFlagsIntr = dip(drop) intrWantPCLsb nextState6502 0xfffe fetchByte
