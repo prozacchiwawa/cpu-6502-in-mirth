@@ -9737,8 +9737,41 @@ getInstructionDest = match(di -> dip(drop drop))
 getImm8AddressUpdate : M6502 -- M6502 Int
 getImm8AddressUpdate = dup getPC6502 match(v16 -> 1 +)
 
+nopInst : M6502 M6502DataSource M6502DataDest -- M6502 M6502Effect
+nopInst = drop drop reset nextState6502 noEff
+
 continueInstruction : M6502 M6502Instruction -- M6502 M6502Effect
-continueInstruction = drop reset nextState6502 noEff
+continueInstruction = match(di -> rotl
+ match(ADC -> nopInst,
+  AND -> nopInst,
+  ASL -> nopInst,
+  BRK -> nopInst,
+  BIT -> nopInst,
+  Bxx -> drop drop nopInst,
+  CLx -> drop nopInst,
+  CMP -> nopInst,
+  CPX -> nopInst,
+  CPY -> nopInst,
+  DEx -> nopInst,
+  EOR -> nopInst,
+  INx -> nopInst,
+  JMP -> nopInst,
+  JSR -> nopInst,
+  LDx -> nopInst,
+  LSR -> nopInst,
+  NOP -> nopInst,
+  ORA -> nopInst,
+  PHf -> nopInst,
+  PLf -> nopInst,
+  ROL -> nopInst,
+  ROR -> nopInst,
+  RTI -> nopInst,
+  RTS -> nopInst,
+  SBC -> nopInst,
+  SEx -> drop nopInst,
+  STx -> nopInst,
+  Txy -> nopInst,
+  WAI -> nopInst))
 
 requestImm8Operand : M6502 M6502Instruction -- M6502 M6502Effect
 requestImm8Operand = continueInstruction
@@ -9795,7 +9828,7 @@ runOneStep = dup stateOf6502 match(reset -> readByteAfterReset,
   intrWantPCLsb -> runOneStepDummy,
   intrGotPCLsb -> drop runOneStepDummy,
   
-  fetch -> runOneStepDummy,
+  fetch -> haveInstructionByte,
   fetchOperand -> drop runOneStepDummy,
   fetchOperandAbsLsb -> drop runOneStepDummy,
   fetchOperandAbsHaveLsb -> drop drop runOneStepDummy)
@@ -9809,6 +9842,10 @@ s2 == v16zero v8zero v8zero v8zero v8zero v8zero 0xab v8 resetReceiveSecondByte 
 s3 : M6502 M6502Effect
 s3 = 0xcd v8 s2 drop runOneStep
 s3 == 0xcdab v16 v8zero v8zero v8zero v8zero v8zero fetch m6502 0xcdab fetchByte
+s4 : M6502 M6502Effect
+s4 = 0xcb v8 s3 drop runOneStep
+s4 == 0xcdac v16 v8zero v8zero v8zero v8zero v8zero fetch m6502 0xcdac fetchByte
+
 # runOneStep = dup stateOf6502 match(reset -> readByteAfterReset,
 #   resetReceiveFirstByte -> received1stByteOfAddrAfterReset,
 #   resetReceiveSecondByte -> received2ndByteOfAddrAfterReset,
