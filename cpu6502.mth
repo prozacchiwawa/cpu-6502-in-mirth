@@ -8982,7 +8982,6 @@ testRamWithMod = 0xffff 0x99 v8 prog byte_to_ram
 0xfffe testRamWithMod byte_of_ram == 0xab v8 
 
 data M6502InterruptType
-  nmi : M6502InterruptType
   irq : M6502InterruptType
   brk : M6502InterruptType
 end
@@ -9071,76 +9070,85 @@ end
 
 data M6502State
   reset : M6502State
-  resetAfterFirstByteRead : R8 -- M6502State
+  resetReceiveFirstByte : M6502State
+  resetReceiveSecondByte : R8 -- M6502State
   
   intr : M6502InterruptType -- M6502State
-  intrAfterPushPCByte1 : M6502InterruptType -- M6502State
-  intrAfterPushPCByte2 : M6502InterruptType -- M6502State
-  intrAfterPushFlags : M6502InterruptType -- M6502State
-  intrAfterFirstByteRead : M6502InterruptType R8 -- M6502State
-
+  intrPushedPCByteLsb : M6502InterruptType -- M6502State
+  intrPushedPCByteMsb : M6502InterruptType -- M6502State
+  intrPushedFlags : M6502State
+  intrWantPCLsb : M6502State
+  intrGotPCLsb : R8 -- M6502State
+  
   fetch : M6502State
+  fetchOperand : M6502Instruction -- M6502State
+  fetchOperandAbsLsb : M6502Instruction -- M6502State
+  fetchOperandAbsHaveLsb : R8 M6502Instruction -- M6502State
+
+ 
+
+  intrSet : M6502State -- M6502State
+  nmiSet : M6502State -- M6502State
 end
 
 data M6502Effect
-  waitInterrupt : M6502Effect
+  noEff : M6502Effect
+  waitInterrupt : -- M6502Effect
   fetchByte : Int -- M6502Effect
+  writeByte : Int R8 -- M6502Effect
+  andEff : M6502Effect M6502Effect -- M6502Effect
 end
 
 # pc a x y sp flags state
 data M6502
-  m6502 : R16 R8 R8 R8 R8 M6502State -- M6502
+  m6502 : R16 R8 R8 R8 R8 R8 M6502State -- M6502
 end
 
-data M6502InstExec
-  ie : R8 M6502InstLabel M6502DataSource M6502DataDest M6502State -- M6502InstExec
-end
+nopInstruction : M6502 -- M6502 M6502Effect
+nopInstruction = noEff
 
-nopInstruction : M6502InstExec -- M6502Effect M6502State
-nopInstruction = match(ie -> dip(drop drop drop) waitInterrupt swap)
-
-group1Instruction : M6502InstExec -- M6502Effect M6502State
+group1Instruction : M6502 -- M6502 M6502Effect
 group1Instruction = nopInstruction
 
-group2Instruction : M6502InstExec -- M6502Effect M6502State
+group2Instruction : M6502 -- M6502 M6502Effect
 group2Instruction = nopInstruction
 
-group0Instruction : M6502InstExec -- M6502Effect M6502State
+group0Instruction : M6502 -- M6502 M6502Effect
 group0Instruction = nopInstruction
 
-zpInstruction : M6502InstExec -- M6502Effect M6502State
+zpInstruction : M6502 -- M6502 M6502Effect
 zpInstruction = nopInstruction
 
 # No group 3
 
-conditionalBranch : M6502InstExec -- M6502Effect M6502State
+conditionalBranch : M6502 -- M6502 M6502Effect
 conditionalBranch = nopInstruction
 
-brkInstruction : M6502InstExec -- M6502Effect M6502State
+brkInstruction : M6502 -- M6502 M6502Effect
 brkInstruction = nopInstruction
-jsrInstruction : M6502InstExec -- M6502Effect M6502State
+jsrInstruction : M6502 -- M6502 M6502Effect
 jsrInstruction = nopInstruction
-rtiInstruction : M6502InstExec -- M6502Effect M6502State
+rtiInstruction : M6502 -- M6502 M6502Effect
 rtiInstruction = nopInstruction
-rtsInstruction : M6502InstExec -- M6502Effect M6502State
+rtsInstruction : M6502 -- M6502 M6502Effect
 rtsInstruction = nopInstruction
 
-phxInstruction : M6502InstExec -- M6502Effect M6502State
+phxInstruction : M6502 -- M6502 M6502Effect
 phxInstruction = nopInstruction
-plxInstruction : M6502InstExec -- M6502Effect M6502State
+plxInstruction : M6502 -- M6502 M6502Effect
 plxInstruction = nopInstruction
-deyInstruction : M6502InstExec -- M6502Effect M6502State
+deyInstruction : M6502 -- M6502 M6502Effect
 deyInstruction = nopInstruction
-tayInstruction : M6502InstExec -- M6502Effect M6502State
+tayInstruction : M6502 -- M6502 M6502Effect
 tayInstruction = nopInstruction
-inxInstruction : M6502InstExec -- M6502Effect M6502State
+inxInstruction : M6502 -- M6502 M6502Effect
 inxInstruction = nopInstruction
 
 # CLx STx
-flgInstruction : M6502InstExec -- M6502Effect M6502State
+flgInstruction : M6502 -- M6502 M6502Effect
 flgInstruction = nopInstruction
 
-waiInstruction : M6502InstExec -- M6502Effect M6502State
+waiInstruction : M6502 -- M6502 M6502Effect
 waiInstruction = nopInstruction
 
 data M6502InstCategory
@@ -9624,11 +9632,163 @@ decodeInstruction = match(g0 -> decodeG0Inst,
 0xea v8 categorizeInstruction decodeInstruction == NOP ds_DUMMY dd_DUMMY di
 0xcb v8 categorizeInstruction decodeInstruction == WAI ds_DUMMY dd_DUMMY di
 
-runOneStep : R8 M6502State -- M6502Effect M6502State
-runOneStep = swap drop waitInterrupt swap
+stateOf6502 : M6502 -- M6502State
+stateOf6502 = match(m6502 -> dip(drop drop drop drop drop drop))
 
+nextState6502 : M6502 M6502State -- M6502
+nextState6502 = dip(match(m6502 -> drop)) m6502
+
+setPC6502 : R16 M6502 -- M6502
+setPC6502 = match(m6502 ->) dip(dip(dip(dip(dip(swap drop))))) m6502
+
+getPC6502 : M6502 -- R16
+getPC6502 = match(m6502 ->) drop drop drop drop drop drop
+
+getSP6502 : M6502 -- R8
+getSP6502 = match(m6502 ->) drop drop dip(drop drop drop drop)
+
+getY6502 : M6502 -- R8
+getY6502 = match(m6502 ->) drop drop drop dip(drop drop drop)
+
+getX6502 : M6502 -- R8
+getX6502 = match(m6502 ->) drop drop drop drop dip(drop drop)
+
+decR8 : R8 -- R8
+decR8 = match(v8 -> ) 1 - v8
+
+getR8 : R8 -- Int
+getR8 = match(v8 -> )
+
+decSP6502 : M6502 -- M6502
+decSP6502 = match(m6502 ->) dip(dip(decR8)) m6502
+
+getFlags6502 : M6502 -- R8
+getFlags6502 = match(m6502 ->) drop dip(drop drop drop drop drop)
+
+fetchPCEffect : M6502 -- M6502 M6502Effect
+fetchPCEffect = dup fetch nextState6502 getPC6502 match(v16 ->) fetchByte
+
+push6502 : M6502 R8 -- M6502 M6502Effect
+push6502 = dip(dup getSP6502 getR8 0x100 + dip(decSP6502)) writeByte
+
+numLsbMsb : R8 R8 -- Int
+numLsbMsb = match(v8 -> 256 *) swap match(v8 -> ) +
+
+readByteAfterReset : M6502 -- M6502 M6502Effect
+readByteAfterReset = resetReceiveFirstByte nextState6502 0xfffc fetchByte 
+
+received1stByteOfAddrAfterReset : R8 M6502 -- M6502 M6502Effect
+received1stByteOfAddrAfterReset = swap resetReceiveSecondByte nextState6502 0xfffd fetchByte
+
+received2ndByteOfAddrAfterReset : R8 R8 M6502 -- M6502 M6502Effect
+received2ndByteOfAddrAfterReset = dip(numLsbMsb v16) setPC6502 fetchPCEffect
+
+pushPCByteLsbIntr : M6502InterruptType M6502 -- M6502 M6502Effect
+pushPCByteLsbIntr = dup getPC6502 match(v16 ->) 256 % v8 push6502 dip(swap intrPushedPCByteLsb nextState6502)
+
+pushPCByteMsbIntr : M6502InterruptType M6502 -- M6502 M6502Effect
+pushPCByteMsbIntr = dup getPC6502 match(v16 ->) 256 / v8 push6502 dip(swap intrPushedPCByteMsb nextState6502)
+
+isSetBit : Int Int -- Bool
+isSetBit = / 2 % 1 eq
+
+11 16 isSetBit == false
+11 8 isSetBit == true
+11 4 isSetBit == false
+11 2 isSetBit == true
+11 1 isSetBit == true
+
+80 128 isSetBit == false
+80 64 isSetBit == true
+80 32 isSetBit == false
+80 16 isSetBit == true
+80 8 isSetBit == false
+80 4 isSetBit == false
+80 2 isSetBit == false
+80 1 isSetBit == false
+
+setBrkBit : R8 -- R8
+setBrkBit = dup getR8 16 isSetBit if(,match(v8 -> 16 + v8))
+
+setBreakInFlagsIfRequired : M6502InterruptType M6502 R8 -- M6502InterruptType M6502 R8
+setBreakInFlagsIfRequired = dip(dip(dup)) rotl match(brk -> setBrkBit, irq ->)
+
+pushFlagsIntr : M6502InterruptType M6502 -- M6502InterruptType M6502 M6502Effect
+pushFlagsIntr = dup getFlags6502 setBreakInFlagsIfRequired push6502 # dip(dip(drop) intrPushedFlags nextState6502)
+
+pushedFlagsIntr : M6502 -- M6502 M6502Effect
+pushedFlagsIntr = intrWantPCLsb nextState6502 0xfffe fetchByte
+
+havePCLsbIntr : R8 M6502 -- M6502 M6502Effect
+havePCLsbIntr = dip(intrGotPCLsb) swap nextState6502 0xffff fetchByte
+
+havePCMsbIntr : R8 R8 M6502 -- M6502 M6502Effect
+havePCMsbIntr = dip(numLsbMsb v16) setPC6502 fetchPCEffect
+
+getInstructionSource : M6502Instruction -- M6502DataSource
+getInstructionSource = match(di -> drop dip(drop))
+
+getInstructionDest : M6502Instruction -- M6502DataDest
+getInstructionDest = match(di -> dip(drop drop))
+
+getImm8AddressUpdate : M6502 -- M6502 Int
+getImm8AddressUpdate = dup getPC6502 match(v16 -> 1 +)
+
+continueInstruction : M6502 M6502Instruction -- M6502 M6502Effect
+continueInstruction = drop reset nextState6502 noEff
+
+requestImm8Operand : M6502 M6502Instruction -- M6502 M6502Effect
+requestImm8Operand = continueInstruction
+
+requestZPxOperand : M6502 M6502Instruction Int -- M6502 M6502Effect
+requestZPxOperand = drop continueInstruction
+
+requestIndexedIndirectX : M6502 M6502Instruction -- M6502 M6502Effect
+requestIndexedIndirectX = continueInstruction
+
+requestIndirectIndexedY : M6502 M6502Instruction -- M6502 M6502Effect
+requestIndirectIndexedY = continueInstruction
+
+requestAbsLsb : M6502 M6502Instruction Int -- M6502 M6502Effect
+requestAbsLsb = drop continueInstruction
+
+requestStackPop : M6502 M6502Instruction -- M6502 M6502Effect
+requestStackPop = continueInstruction
+
+haveInstructionByte : R8 M6502 -- M6502 M6502Effect
+haveInstructionByte = swap categorizeInstruction decodeInstruction dup getInstructionSource match(ds_DUMMY -> continueInstruction,
+  ds_A -> continueInstruction,
+  ds_X -> continueInstruction,
+  ds_Y -> continueInstruction,
+  ds_S -> continueInstruction,
+  ds_F -> continueInstruction,
+  ds_Imm8 -> requestImm8Operand,
+  ds_zp -> 0 requestZPxOperand,
+  ds_zpX -> 1 requestZPxOperand,
+  ds_zpY -> 2 requestZPxOperand,
+  ds_indexedIndirectX -> requestIndexedIndirectX,
+  ds_indirectIndexedY -> requestIndirectIndexedY,
+  ds_Abs -> 0 requestAbsLsb,
+  ds_AbsX -> 1 requestAbsLsb,
+  ds_AbsY -> 2 requestAbsLsb,
+  ds_indirectAbs -> 3 requestAbsLsb,
+  ds_Stack -> requestStackPop)
+
+# runOneStep : R8 M6502 -- M6502 M6502Effect
+# runOneStep = dup stateOf6502 match(reset -> dip(drop) readByteAfterReset,
+#   resetReceiveFirstByte -> received1stByteOfAddrAfterReset,
+#   resetReceiveSecondByte -> received2ndByteOfAddrAfterReset,
+
+#   intr -> dip(drop) pushPCByteLsbIntr,
+#   intrPushedPCByteLsb -> dip(drop) pushPCByteMsbIntr,
+#   intrPushedPCByteMsb -> dip(drop) pushFlagsIntr,
+#   intrPushedFlagsWantPCLsb -> dip(drop) havePCLsbIntr,
+#   intrGotPCLsb -> havePCMsbIntr,
+  
+#   fetch -> haveInstructionByte)
+  
 emptyM6502 : -- M6502
-emptyM6502 = v16zero v8zero v8zero v8zero v8zero reset m6502
+emptyM6502 = v16zero v8zero v8zero v8zero v8zero v8zero reset m6502
 
 data TestComputer
   testComputer : M6502 Ram -- TestComputer
