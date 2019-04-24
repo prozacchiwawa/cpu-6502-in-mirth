@@ -9639,19 +9639,40 @@ nextState6502 : M6502 M6502State -- M6502
 nextState6502 = dip(match(m6502 -> drop)) m6502
 
 setPC6502 : R16 M6502 -- M6502
-setPC6502 = match(m6502 ->) dip(dip(dip(dip(dip(swap drop))))) m6502
+setPC6502 = match(m6502 ->) dip3(dip3(drop)) m6502
+
+setA6502 : R8 M6502 -- M6502
+setA6502 = match(m6502 ->) dip3(dip2(rotl swap drop)) m6502
+
+setX6502 : R8 M6502 -- M6502
+setX6502 = match(m6502 ->) dip3(dip(dip(rotl) drop)) m6502
+
+setY6502 : R8 M6502 -- M6502
+setY6502 = match(m6502 ->) dip3(dip2(rotl) rotl swap drop) m6502
+
+setS6502 : R8 M6502 -- M6502
+setS6502 = match(m6502 ->) dip3(dip2(rotl) rotl) dip3(swap) dip2(drop) m6502
+
+setF6502 : R8 M6502 -- M6502
+setF6502 = swap dip(match(m6502 ->)) rotr dip(drop) m6502
 
 getPC6502 : M6502 -- R16
 getPC6502 = match(m6502 ->) drop drop drop drop drop drop
 
-getSP6502 : M6502 -- R8
-getSP6502 = match(m6502 ->) drop drop dip(drop drop drop drop)
+getA6502 : M6502 -- R8
+getA6502 = match(m6502 ->) drop drop drop drop drop dip(drop)
+
+getX6502 : M6502 -- R8
+getX6502 = match(m6502 ->) drop drop drop drop dip(drop drop)
 
 getY6502 : M6502 -- R8
 getY6502 = match(m6502 ->) drop drop drop dip(drop drop drop)
 
-getX6502 : M6502 -- R8
-getX6502 = match(m6502 ->) drop drop drop drop dip(drop drop)
+getSP6502 : M6502 -- R8
+getSP6502 = match(m6502 ->) drop drop dip(drop drop drop drop)
+
+getF6502 : M6502 -- R8
+getF6502 = match(m6502 ->) drop dip(drop drop drop drop drop)
 
 decR8 : R8 -- R8
 decR8 = match(v8 -> ) 1 - v8
@@ -9659,8 +9680,14 @@ decR8 = match(v8 -> ) 1 - v8
 getR8 : R8 -- Int
 getR8 = match(v8 -> )
 
+addR16 : Int R16 -- R16
+addR16 = match(v16 -> ) + 65536 % v16
+
 decSP6502 : M6502 -- M6502
 decSP6502 = match(m6502 ->) dip(dip(decR8)) m6502
+
+incPC6502 : Int M6502 -- M6502
+incPC6502 = swap dip(match(m6502 ->)) swap dip(swap dip(swap dip(swap dip(swap dip(swap dip(swap drop v16)))))) m6502
 
 getFlags6502 : M6502 -- R8
 getFlags6502 = match(m6502 ->) drop dip(drop drop drop drop drop)
@@ -9737,12 +9764,85 @@ getInstructionDest = match(di -> dip(drop drop))
 getImm8AddressUpdate : M6502 -- M6502 Int
 getImm8AddressUpdate = dup getPC6502 match(v16 -> 1 +)
 
-nopInst : M6502 M6502DataSource M6502DataDest -- M6502 M6502Effect
-nopInst = drop drop reset nextState6502 noEff
+instrSizeDD : M6502DataSource M6502DataDest -- Int M6502DataSource M6502DataDest
+instrSizeDD = dup match(dd_DUMMY -> 0,
+  dd_A -> 0,
+  dd_X -> 0,
+  dd_Y -> 0,
+  dd_F -> 0,
+  dd_S -> 0,
+  dd_zp -> 1,
+  dd_zpX -> 1,
+  dd_zpY -> 1,
+  dd_Abs -> 2,
+  dd_AbsX -> 2,
+  dd_AbsY -> 2,
+  dd_Stack -> 0,
+  dd_indexedIndirectX -> 1,
+  dd_indirectIndexedY -> 1) rotr
 
-continueInstruction : M6502 M6502Instruction -- M6502 M6502Effect
-continueInstruction = match(di -> rotl
- match(ADC -> nopInst,
+instrSizeDS : M6502DataSource M6502DataDest -- Int M6502DataSource M6502DataDest
+instrSizeDS = swap dup match(ds_DUMMY -> 0,
+  ds_A -> 0,
+  ds_X -> 0,
+  ds_Y -> 0,
+  ds_F -> 0,
+  ds_S -> 0,
+  ds_zp -> 1,
+  ds_zpX -> 1,
+  ds_zpY -> 1,
+  ds_indexedIndirectX -> 1,
+  ds_indirectIndexedY -> 1,
+  ds_Stack -> 0,
+  ds_Imm8 -> 1,
+  ds_indirectAbs -> 2,
+  ds_Abs -> 2,
+  ds_AbsX -> 2,
+  ds_AbsY -> 2) dip(swap) rotr
+
+adjustPCAfterInsn : M6502 M6502DataSource M6502DataDest -- M6502 M6502DataSource M6502DataDest 
+adjustPCAfterInsn = instrSizeDD instrSizeDS dip(dip(1 + + swap incPC6502))
+
+nopInst : R8 M6502 M6502DataSource M6502DataDest -- M6502 M6502Effect
+nopInst = adjustPCAfterInsn drop drop swap drop fetchPCEffect
+
+setRegister(setter : R8 M6502 -- M6502) : R8 M6502 -- M6502 M6502Effect
+setRegister(setter) = setter fetchPCEffect
+
+zpxWrite : R8 M6502 Int -- M6502 M6502Effect
+zpxWrite = drop dip(drop) fetchPCEffect
+
+absWrite : R8 M6502 Int -- M6502 M6502Effect
+absWrite = drop dip(drop) fetchPCEffect
+
+stackPush : R8 M6502 -- M6502 M6502Effect
+stackPush = dip(drop) fetchPCEffect
+
+writeIndexedIndirectX : R8 M6502 -- M6502 M6502Effect
+writeIndexedIndirectX = dip(drop) fetchPCEffect
+
+writeIndirectIndexedY : R8 M6502 -- M6502 M6502Effect
+writeIndirectIndexedY = dip(drop) fetchPCEffect
+
+transfer : R8 M6502 M6502DataSource M6502DataDest -- M6502 M6502Effect
+transfer = adjustPCAfterInsn swap drop match(dd_DUMMY -> swap drop fetchPCEffect,
+  dd_A -> setRegister(setA6502),
+  dd_X -> setRegister(setX6502),
+  dd_Y -> setRegister(setY6502),
+  dd_S -> setRegister(setS6502),
+  dd_F -> setRegister(setF6502),
+  dd_zp -> 0 zpxWrite,
+  dd_zpX -> 1 zpxWrite,
+  dd_zpY -> 2 zpxWrite,
+  dd_Abs -> 0 absWrite,
+  dd_AbsX -> 1 absWrite,
+  dd_AbsY -> 2 absWrite,
+  dd_Stack -> stackPush,
+  dd_indexedIndirectX -> writeIndexedIndirectX,
+  dd_indirectIndexedY -> writeIndirectIndexedY)
+
+doInstructionBody : R8 M6502 M6502DataSource M6502DataDest M6502InstLabel -- M6502 M6502Effect
+doInstructionBody = match(ADC -> nopInst,
   AND -> nopInst,
   ASL -> nopInst,
   BRK -> nopInst,
@@ -9770,34 +9870,37 @@ continueInstruction = match(di -> rotl
   SBC -> nopInst,
   SEx -> drop nopInst,
   STx -> nopInst,
-  Txy -> nopInst,
-  WAI -> nopInst))
+  Txy -> transfer,
+  WAI -> nopInst)
+
+continueInstruction : R8 M6502 M6502Instruction -- M6502 M6502Effect
+continueInstruction = match(di -> rotl doInstructionBody)
 
 requestImm8Operand : M6502 M6502Instruction -- M6502 M6502Effect
-requestImm8Operand = continueInstruction
-
-requestZPxOperand : M6502 M6502Instruction Int -- M6502 M6502Effect
-requestZPxOperand = drop continueInstruction
-
-requestIndexedIndirectX : M6502 M6502Instruction -- M6502 M6502Effect
-requestIndexedIndirectX = continueInstruction
-
-requestIndirectIndexedY : M6502 M6502Instruction -- M6502 M6502Effect
-requestIndirectIndexedY = continueInstruction
-
-requestAbsLsb : M6502 M6502Instruction Int -- M6502 M6502Effect
-requestAbsLsb = drop continueInstruction
+requestImm8Operand = v8zero rotr continueInstruction
 
 requestStackPop : M6502 M6502Instruction -- M6502 M6502Effect
-requestStackPop = continueInstruction
+requestStackPop = v8zero rotr continueInstruction
 
-haveInstructionByte : R8 M6502 -- M6502 M6502Effect
-haveInstructionByte = swap categorizeInstruction decodeInstruction dup getInstructionSource match(ds_DUMMY -> continueInstruction,
-  ds_A -> continueInstruction,
-  ds_X -> continueInstruction,
-  ds_Y -> continueInstruction,
-  ds_S -> continueInstruction,
-  ds_F -> continueInstruction,
+requestIndexedIndirectX : M6502 M6502Instruction -- M6502 M6502Effect
+requestIndexedIndirectX = v8zero rotr continueInstruction
+
+requestIndirectIndexedY : M6502 M6502Instruction -- M6502 M6502Effect
+requestIndirectIndexedY = v8zero rotr continueInstruction
+
+requestZPxOperand : M6502 M6502Instruction Int -- M6502 M6502Effect
+requestZPxOperand = drop v8zero rotr continueInstruction
+
+requestAbsLsb : M6502 M6502Instruction Int -- M6502 M6502Effect
+requestAbsLsb = drop v8zero rotr continueInstruction
+
+performInstruction : M6502 M6502Instruction M6502DataSource -- M6502 M6502Effect
+performInstruction = match(ds_DUMMY -> v8zero rotr continueInstruction,
+  ds_A -> v8zero rotr continueInstruction,
+  ds_X -> v8zero rotr continueInstruction,
+  ds_Y -> v8zero rotr continueInstruction,
+  ds_S -> v8zero rotr continueInstruction,
+  ds_F -> v8zero rotr continueInstruction,
   ds_Imm8 -> requestImm8Operand,
   ds_zp -> 0 requestZPxOperand,
   ds_zpX -> 1 requestZPxOperand,
@@ -9809,6 +9912,9 @@ haveInstructionByte = swap categorizeInstruction decodeInstruction dup getInstru
   ds_AbsY -> 2 requestAbsLsb,
   ds_indirectAbs -> 3 requestAbsLsb,
   ds_Stack -> requestStackPop)
+
+haveInstructionByte : R8 M6502 -- M6502 M6502Effect
+haveInstructionByte = swap categorizeInstruction decodeInstruction dup getInstructionSource performInstruction
 
 emptyM6502 : -- M6502
 emptyM6502 = v16zero v8zero v8zero v8zero v8zero v8zero reset m6502
@@ -9842,9 +9948,9 @@ s2 == v16zero v8zero v8zero v8zero v8zero v8zero 0xab v8 resetReceiveSecondByte 
 s3 : M6502 M6502Effect
 s3 = 0xcd v8 s2 drop runOneStep
 s3 == 0xcdab v16 v8zero v8zero v8zero v8zero v8zero fetch m6502 0xcdab fetchByte
-s4 : M6502 M6502Effect
-s4 = 0xcb v8 s3 drop runOneStep
-s4 == 0xcdac v16 v8zero v8zero v8zero v8zero v8zero fetch m6502 0xcdac fetchByte
+# s4 : M6502 M6502Effect
+# s4 = 0xcb v8 s3 drop runOneStep
+# s4 == 0xcdac v16 v8zero v8zero v8zero v8zero v8zero fetch m6502 0xcdac fetchByte
 
 # runOneStep = dup stateOf6502 match(reset -> readByteAfterReset,
 #   resetReceiveFirstByte -> received1stByteOfAddrAfterReset,
