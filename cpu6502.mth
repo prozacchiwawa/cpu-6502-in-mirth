@@ -9851,7 +9851,7 @@ finishZpxWrite : M6502 Int R8 M6502ZPRegister -- M6502 M6502Effect
 finishZpxWrite = fetchZPByteDest nextState6502 dup getPC6502 match(v16 -> 1 -) fetchByte
 
 beginZpxWriteWithGetter(getter : M6502 -- R8) : R8 M6502 -- M6502 Int R8
-beginZpxWriteWithGetter(getter) = swap dup dip(swap consumeSetNZFlags) dip(dup getter getR8)
+beginZpxWriteWithGetter(getter) = swap dip(dup getter getR8)
 
 beginZpxWrite : R8 M6502 M6502ZPRegister -- M6502 Int R8
 beginZpxWrite = match(justZP -> beginZpxWriteWithGetter(drop 0 v8),
@@ -9893,6 +9893,9 @@ writeOutput = match(dd_DUMMY -> swap drop fetchPCEffect,
 transfer : R8 M6502 M6502DataSource M6502DataDest -- M6502 M6502Effect
 transfer = adjustPCAfterInsn swap drop dip(dip(dup) consumeSetNZFlags) writeOutput
 
+store : R8 M6502 M6502DataSource M6502DataDest -- M6502 M6502Effect
+store = adjustPCAfterInsn swap drop dip(dip(dup) swap drop) writeOutput
+
 doInstructionBody : R8 M6502 M6502DataSource M6502DataDest M6502InstLabel -- M6502 M6502Effect
 doInstructionBody = match(ADC -> nopInst,
   AND -> nopInst,
@@ -9921,7 +9924,7 @@ doInstructionBody = match(ADC -> nopInst,
   RTS -> nopInst,
   SBC -> nopInst,
   SEx -> drop nopInst,
-  STx -> transfer,
+  STx -> store,
   Txy -> transfer,
   WAI -> nopInst)
 
@@ -10081,6 +10084,19 @@ cpuSTYZp2 == 0xcdad v16 v8zero 0xaa v8 0x33 v8 v8zero v8zero prefetch m6502 0xbb
 cpuSTYZp3 : M6502 M6502Effect
 cpuSTYZp3 = v8zero cpuSTYZp2 drop runOneStep
 cpuSTYZp3 == 0xcdad v16 v8zero 0xaa v8 0x33 v8 v8zero v8zero fetch m6502 0xcdad fetchByte
+
+cpuXYEqaa00 : M6502
+cpuXYEqaa00 = v8zero s3 drop setY6502 0xaa v8 swap setX6502
+
+cpuSTY0Zp1 : M6502 M6502Effect
+cpuSTY0Zp1 = 0x94 v8 cpuXYEqaa00 runOneStep
+cpuSTY0Zp1 == 0xcdad v16 v8zero 0xaa v8 0x00 v8 v8zero v8zero 0xaa 0x00 v8 zpPlusX fetchZPByteDest m6502 0xcdac fetchByte
+cpuSTY0Zp2 : M6502 M6502Effect
+cpuSTY0Zp2 = 0x11 v8 cpuSTY0Zp1 drop runOneStep
+cpuSTY0Zp2 == 0xcdad v16 v8zero 0xaa v8 0x00 v8 v8zero v8zero prefetch m6502 0xbb 0x00 v8 writeByte
+cpuSTY0Zp3 : M6502 M6502Effect
+cpuSTY0Zp3 = v8zero cpuSTY0Zp2 drop runOneStep
+cpuSTY0Zp3 == 0xcdad v16 v8zero 0xaa v8 0x00 v8 v8zero v8zero fetch m6502 0xcdad fetchByte
 
 data TestComputer
   testComputer : M6502 Ram -- TestComputer
