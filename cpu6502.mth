@@ -9839,7 +9839,7 @@ setFlagIf = swap if(setBit,dropBit)
 v8zero true 128 setFlagIf == 128 v8
 
 setNZFlags : M6502 Bool Bool -- M6502
-setNZFlags = dip2(dup getF6502) dip(4 setFlagIf) 128 setFlagIf swap setF6502
+setNZFlags = dip2(dup getF6502) dip(2 setFlagIf) 128 setFlagIf swap setF6502
 
 getNZFlagsToSet : R8 -- Bool Bool
 getNZFlagsToSet = getR8 dup 128 isSetBit dip (0 eq)
@@ -9905,6 +9905,24 @@ store = adjustPCAfterInsn swap drop dip(dip(dup) swap drop) writeOutput
 push : R8 M6502 M6502DataSource M6502DataDest -- M6502 M6502Effect
 push = adjustPCAfterInsn swap drop dip(dip(dup) swap drop) pushOutput
 
+setFlagInt(val : Int) : R8 M6502 M6502DataSource M6502DataDest -- M6502 M6502Effect
+setFlagInt(val) = adjustPCAfterInsn swap drop dip2(val setBit) writeOutput
+
+clrFlagInt(val : Int) : R8 M6502 M6502DataSource M6502DataDest -- M6502 M6502Effect
+clrFlagInt(val) = adjustPCAfterInsn swap drop dip2(val dropBit) writeOutput
+
+setFlag : R8 M6502 M6502DataSource M6502DataDest M6502Flag -- M6502 M6502Effect
+setFlag = match(carry -> setFlagInt(1),
+  interrupt -> setFlagInt(4),
+  overflow -> setFlagInt(0x40),
+  direction -> setFlagInt(0x80))
+
+clrFlag : R8 M6502 M6502DataSource M6502DataDest M6502Flag -- M6502 M6502Effect
+clrFlag = match(carry -> clrFlagInt(1),
+  interrupt -> clrFlagInt(4),
+  overflow -> clrFlagInt(0x40),
+  direction -> clrFlagInt(0x08))
+
 doInstructionBody : R8 M6502 M6502DataSource M6502DataDest M6502InstLabel -- M6502 M6502Effect
 doInstructionBody = match(ADC -> nopInst,
   AND -> nopInst,
@@ -9912,7 +9930,7 @@ doInstructionBody = match(ADC -> nopInst,
   BRK -> nopInst,
   BIT -> nopInst,
   Bxx -> drop drop nopInst,
-  CLx -> drop nopInst,
+  CLx -> clrFlag,
   CMP -> nopInst,
   CPX -> nopInst,
   CPY -> nopInst,
@@ -9932,7 +9950,7 @@ doInstructionBody = match(ADC -> nopInst,
   RTI -> nopInst,
   RTS -> nopInst,
   SBC -> nopInst,
-  SEx -> drop nopInst,
+  SEx -> setFlag,
   STx -> store,
   Txy -> transfer,
   WAI -> nopInst)
@@ -10108,21 +10126,35 @@ cpuSTY0Zp3 = v8zero cpuSTY0Zp2 drop runOneStep
 cpuSTY0Zp3 == 0xcdad v16 v8zero 0xaa v8 0x00 v8 v8zero v8zero fetch m6502 0xcdad fetchByte
 
 cpuStackAddr : M6502
-cpuStackAddr = 4 v8 cpuAEq33 setF6502 0xff v8 swap setS6502
+cpuStackAddr = 2 v8 cpuAEq33 setF6502 0xff v8 swap setS6502
 
 phaINST : M6502Instruction
 phaINST = PHf ds_A dd_Stack di
 cpuPHAZp1 : M6502 M6502Effect
 cpuPHAZp1 = 0x48 v8 cpuStackAddr runOneStep
 cpuPHAZp2 : M6502 M6502Effect
-cpuPHAZp2 = 0xcdad v16 0x33 v8 v8zero v8zero 0xfe v8 4 v8 prefetch m6502 0x1ff 0x33 v8 writeByte
+cpuPHAZp2 = 0xcdad v16 0x33 v8 v8zero v8zero 0xfe v8 2 v8 prefetch m6502 0x1ff 0x33 v8 writeByte
 
 phfINST : M6502Instruction
 phfINST = PHf ds_F dd_Stack di
 cpuPHFZp1 : M6502 M6502Effect
 cpuPHFZp1 = 0x08 v8 cpuStackAddr runOneStep
 cpuPHFZp2 : M6502 M6502Effect
-cpuPHFZp2 = 0xcdad v16 0x33 v8 v8zero v8zero 0xfe v8 4 v8 prefetch m6502 0x1ff 4 v8 writeByte
+cpuPHFZp2 = 0xcdad v16 0x33 v8 v8zero v8zero 0xfe v8 2 v8 prefetch m6502 0x1ff 2 v8 writeByte
+
+seiINST : M6502Instruction
+seiINST = interrupt SEx ds_DUMMY dd_DUMMY di
+cpuSEIZp1 : M6502 M6502Effect
+cpuSEIZp1 = 0x78 v8 cpuAEq33 runOneStep
+cpuSEIZp2 : M6502 M6502Effect
+cpuSEIZp2 = 0xcdac v16 0x33 v8 v8zero v8zero v8zero 4 v8 fetch m6502 0xcdac fetchByte
+
+cldINST : M6502Instruction
+cldINST = direction CLx ds_DUMMY dd_DUMMY di
+cpuCLDZp1 : M6502 M6502Effect
+cpuCLDZp1 = 0xd8 v8 cpuAEq33 runOneStep
+cpuCLDZp2 : M6502 M6502Effect
+cpuCLDZp2 = 0xcdac v16 0x33 v8 v8zero v8zero v8zero 8 v8 fetch m6502 0xcdac fetchByte
 
 data TestComputer
   testComputer : M6502 Ram -- TestComputer
