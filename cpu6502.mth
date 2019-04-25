@@ -9944,6 +9944,9 @@ performInstruction = match(ds_DUMMY -> v8zero rotr continueInstruction,
 haveInstructionByte : R8 M6502 -- M6502 M6502Effect
 haveInstructionByte = swap categorizeInstruction decodeInstruction dup getInstructionSource performInstruction
 
+haveOperandByte : R8 M6502 M6502Instruction -- M6502 M6502Effect
+haveOperandByte = continueInstruction
+
 emptyM6502 : -- M6502
 emptyM6502 = v16zero v8zero v8zero v8zero v8zero v8zero reset m6502
 
@@ -9963,7 +9966,7 @@ runOneStep = dup stateOf6502 match(reset -> readByteAfterReset,
   intrGotPCLsb -> drop runOneStepDummy,
   
   fetch -> haveInstructionByte,
-  fetchOperand -> drop runOneStepDummy,
+  fetchOperand -> haveOperandByte,
   fetchOperandAbsLsb -> drop runOneStepDummy,
   fetchOperandAbsHaveLsb -> drop drop runOneStepDummy)
 
@@ -9996,9 +9999,12 @@ cpuTAXN == 0xcdac v16 0x8f v8 0x8f v8 v8zero v8zero 0x80 v8 fetch m6502 0xcdac f
 
 ldaINST : M6502Instruction
 ldaINST = LDx ds_Imm8 dd_A di
-cpuLDA : M6502 M6502Effect
-cpuLDA = 0xa9 v8 cpuAEq33 runOneStep
-cpuLDA == 0xcdab v16 0x33 v8 v8zero v8zero v8zero v8zero ldaINST fetchOperand m6502 0xcdac fetchByte
+cpuLDA1 : M6502 M6502Effect
+cpuLDA1 = 0xa9 v8 cpuAEq33 runOneStep
+cpuLDA1 == 0xcdab v16 0x33 v8 v8zero v8zero v8zero v8zero ldaINST fetchOperand m6502 0xcdac fetchByte
+cpuLDA2 : M6502 M6502Effect
+cpuLDA2 = 0x55 v8 cpuLDA1 drop runOneStep
+cpuLDA2 == 0xcdad v16 0x55 v8 v8zero v8zero v8zero v8zero fetch m6502 0xcdad fetchByte
 
 data TestComputer
   testComputer : M6502 Ram -- TestComputer
