@@ -9094,7 +9094,9 @@ data M6502State
   fetchOperandAbsLsb : M6502Instruction -- M6502State
   fetchOperandAbsHaveLsb : R8 M6502Instruction -- M6502State
 
-  fetchZPByteDest : R8 M6502ZPRegister -- M6502State
+  fetchZPByteDest : Int R8 M6502ZPRegister -- M6502State
+
+  prefetch : M6502State
 
 #  intrSet : M6502State -- M6502State
 #  nmiSet : M6502State -- M6502State
@@ -9105,7 +9107,6 @@ data M6502Effect
   waitInterrupt : -- M6502Effect
   fetchByte : Int -- M6502Effect
   writeByte : Int R8 -- M6502Effect
-  andEff : M6502Effect M6502Effect -- M6502Effect
 end
 
 # pc a x y sp flags state
@@ -9846,13 +9847,13 @@ consumeSetNZFlags = swap getNZFlagsToSet setNZFlags
 setRegister(setter : R8 M6502 -- M6502) : R8 M6502 -- M6502 M6502Effect
 setRegister(setter) = setter fetchPCEffect
 
-finishZpxWrite : Int M6502 R8 M6502ZPRegister -- M6502 M6502Effect
-finishZpxWrite = fetchZPByteDest nextState6502 dup getPC6502 match(v16 -> 1 -) dip(swap) + fetchByte
+finishZpxWrite : M6502 Int R8 M6502ZPRegister -- M6502 M6502Effect
+finishZpxWrite = fetchZPByteDest nextState6502 dup getPC6502 match(v16 -> 1 -) fetchByte
 
-beginZpxWriteWithGetter(getter : M6502 -- R8) : R8 M6502 -- Int M6502 R8
-beginZpxWriteWithGetter(getter) = swap dup dip(swap consumeSetNZFlags) dip(dup getter getR8 swap)
+beginZpxWriteWithGetter(getter : M6502 -- R8) : R8 M6502 -- M6502 Int R8
+beginZpxWriteWithGetter(getter) = swap dup dip(swap consumeSetNZFlags) dip(dup getter getR8)
 
-beginZpxWrite : R8 M6502 M6502ZPRegister -- Int M6502 R8
+beginZpxWrite : R8 M6502 M6502ZPRegister -- M6502 Int R8
 beginZpxWrite = match(justZP -> beginZpxWriteWithGetter(drop 0 v8),
   zpPlusX -> beginZpxWriteWithGetter(getX6502),
   zpPlusY -> beginZpxWriteWithGetter(getY6502))
@@ -9950,6 +9951,12 @@ doFetchZPByte = match(justZP -> rotl getR8 fetchByte dip(fetchOperand nextState6
   zpPlusX -> fetchZPByteWithRegister(getX6502),
   zpPlusY -> fetchZPByteWithRegister(getY6502))
 
+prepareWriteAfterZPFetch : R8 M6502 Int R8 M6502ZPRegister -- M6502 Int R8
+prepareWriteAfterZPFetch = drop dip(rotl getR8 +)
+
+doWriteAfterZPFetch : R8 M6502 Int R8 M6502ZPRegister -- M6502 M6502Effect
+doWriteAfterZPFetch = prepareWriteAfterZPFetch writeByte dip(prefetch nextState6502)
+
 requestAbsLsb : M6502 M6502Instruction Int -- M6502 M6502Effect
 requestAbsLsb = drop v8zero rotr continueInstruction
 
@@ -9998,7 +10005,9 @@ runOneStep = dup stateOf6502 match(reset -> readByteAfterReset,
   intrPushedFlags -> runOneStepDummy,
   intrWantPCLsb -> runOneStepDummy,
   intrGotPCLsb -> drop runOneStepDummy,
-  
+
+  prefetch -> swap drop fetchPCEffect,
+
   fetch -> haveInstructionByte,
   fetchOperand -> haveOperandByte,
 
@@ -10007,7 +10016,7 @@ runOneStep = dup stateOf6502 match(reset -> readByteAfterReset,
   fetchOperandAbsLsb -> drop runOneStepDummy,
   fetchOperandAbsHaveLsb -> drop drop runOneStepDummy,
 
-  fetchZPByteDest -> drop drop runOneStepDummy
+  fetchZPByteDest -> doWriteAfterZPFetch
   )
 
 0x80 v8 emptyM6502 setF6502 == v16zero v8zero v8zero v8zero v8zero 0x80 v8 reset m6502
@@ -10058,14 +10067,20 @@ cpuLDYZp3 : M6502 M6502Effect
 cpuLDYZp3 = 0x22 v8 cpuLDYZp2 drop runOneStep
 cpuLDYZp3 == 0xcdad v16 0x33 v8 v8zero 0x22 v8 v8zero v8zero fetch m6502 0xcdad fetchByte
 
-cpuYEq33 : M6502
-cpuYEq33 = 0x33 v8 s3 drop setY6502
+cpuXYEqaa33 : M6502
+cpuXYEqaa33 = 0x33 v8 s3 drop setY6502 0xaa v8 swap setX6502
 
 stxZpYINST : M6502Instruction
 stxZpYINST = STx ds_Y dd_zpX di
 cpuSTYZp1 : M6502 M6502Effect
-cpuSTYZp1 = 0x94 v8 cpuYEq33 runOneStep
-cpuSTYZp1 == 0xcdad v16 v8zero v8zero 0x33 v8 v8zero v8zero 0x33 v8 zpPlusX fetchZPByteDest m6502 0xcdac fetchByte
+cpuSTYZp1 = 0x94 v8 cpuXYEqaa33 runOneStep
+cpuSTYZp1 == 0xcdad v16 v8zero 0xaa v8 0x33 v8 v8zero v8zero 0xaa 0x33 v8 zpPlusX fetchZPByteDest m6502 0xcdac fetchByte
+cpuSTYZp2 : M6502 M6502Effect
+cpuSTYZp2 = 0x11 v8 cpuSTYZp1 drop runOneStep
+cpuSTYZp2 == 0xcdad v16 v8zero 0xaa v8 0x33 v8 v8zero v8zero prefetch m6502 0xbb 0x33 v8 writeByte
+cpuSTYZp3 : M6502 M6502Effect
+cpuSTYZp3 = v8zero cpuSTYZp2 drop runOneStep
+cpuSTYZp3 == 0xcdad v16 v8zero 0xaa v8 0x33 v8 v8zero v8zero fetch m6502 0xcdad fetchByte
 
 data TestComputer
   testComputer : M6502 Ram -- TestComputer
