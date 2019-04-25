@@ -9684,8 +9684,11 @@ getSP6502 = match(m6502 ->) drop drop dip(drop drop drop drop)
 getF6502 : M6502 -- R8
 getF6502 = match(m6502 ->) drop dip(drop drop drop drop drop)
 
+incR8 : R8 -- R8
+incR8 = match(v8 -> ) 1 + 256 % v8
+
 decR8 : R8 -- R8
-decR8 = match(v8 -> ) 1 - v8
+decR8 = match(v8 -> ) 255 + 256 % v8
 
 getR8 : R8 -- Int
 getR8 = match(v8 -> )
@@ -9715,7 +9718,7 @@ numMsbLsb : R8 R8 -- Int
 numMsbLsb = match(v8 -> ) swap match(v8 -> 256 *) +
                                     
 readByteAfterReset : R8 M6502 -- M6502 M6502Effect
-readByteAfterReset = dip(drop) resetReceiveFirstByte nextState6502 0xfffc fetchByte 
+readByteAfterReset = dip(drop) resetReceiveFirstByte nextState6502 0xfffc fetchByte
 
 received1stByteOfAddrAfterReset : R8 M6502 -- M6502 M6502Effect
 received1stByteOfAddrAfterReset = swap resetReceiveSecondByte nextState6502 0xfffd fetchByte
@@ -9865,7 +9868,7 @@ absWrite : R8 M6502 Int -- M6502 M6502Effect
 absWrite = drop dip(drop) fetchPCEffect
 
 stackPush : R8 M6502 -- M6502 M6502Effect
-stackPush = dip(drop) fetchPCEffect
+stackPush = swap push6502 dip(prefetch nextState6502)
 
 writeIndexedIndirectX : R8 M6502 -- M6502 M6502Effect
 writeIndexedIndirectX = dip(drop) fetchPCEffect
@@ -9890,11 +9893,17 @@ writeOutput = match(dd_DUMMY -> swap drop fetchPCEffect,
   dd_indexedIndirectX -> writeIndexedIndirectX,
   dd_indirectIndexedY -> writeIndirectIndexedY)
 
+pushOutput : R8 M6502 M6502DataDest -- M6502 M6502Effect
+pushOutput = writeOutput
+
 transfer : R8 M6502 M6502DataSource M6502DataDest -- M6502 M6502Effect
 transfer = adjustPCAfterInsn swap drop dip(dip(dup) consumeSetNZFlags) writeOutput
 
 store : R8 M6502 M6502DataSource M6502DataDest -- M6502 M6502Effect
 store = adjustPCAfterInsn swap drop dip(dip(dup) swap drop) writeOutput
+
+push : R8 M6502 M6502DataSource M6502DataDest -- M6502 M6502Effect
+push = adjustPCAfterInsn swap drop dip(dip(dup) swap drop) pushOutput
 
 doInstructionBody : R8 M6502 M6502DataSource M6502DataDest M6502InstLabel -- M6502 M6502Effect
 doInstructionBody = match(ADC -> nopInst,
@@ -9916,7 +9925,7 @@ doInstructionBody = match(ADC -> nopInst,
   LSR -> nopInst,
   NOP -> nopInst,
   ORA -> nopInst,
-  PHf -> nopInst,
+  PHf -> push,
   PLf -> nopInst,
   ROL -> nopInst,
   ROR -> nopInst,
@@ -10097,6 +10106,23 @@ cpuSTY0Zp2 == 0xcdad v16 v8zero 0xaa v8 0x00 v8 v8zero v8zero prefetch m6502 0xb
 cpuSTY0Zp3 : M6502 M6502Effect
 cpuSTY0Zp3 = v8zero cpuSTY0Zp2 drop runOneStep
 cpuSTY0Zp3 == 0xcdad v16 v8zero 0xaa v8 0x00 v8 v8zero v8zero fetch m6502 0xcdad fetchByte
+
+cpuStackAddr : M6502
+cpuStackAddr = 4 v8 cpuAEq33 setF6502 0xff v8 swap setS6502
+
+phaINST : M6502Instruction
+phaINST = PHf ds_A dd_Stack di
+cpuPHAZp1 : M6502 M6502Effect
+cpuPHAZp1 = 0x48 v8 cpuStackAddr runOneStep
+cpuPHAZp2 : M6502 M6502Effect
+cpuPHAZp2 = 0xcdad v16 0x33 v8 v8zero v8zero 0xfe v8 4 v8 prefetch m6502 0x1ff 0x33 v8 writeByte
+
+phfINST : M6502Instruction
+phfINST = PHf ds_F dd_Stack di
+cpuPHFZp1 : M6502 M6502Effect
+cpuPHFZp1 = 0x08 v8 cpuStackAddr runOneStep
+cpuPHFZp2 : M6502 M6502Effect
+cpuPHFZp2 = 0xcdad v16 0x33 v8 v8zero v8zero 0xfe v8 4 v8 prefetch m6502 0x1ff 4 v8 writeByte
 
 data TestComputer
   testComputer : M6502 Ram -- TestComputer
