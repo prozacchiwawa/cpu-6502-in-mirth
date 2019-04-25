@@ -9687,10 +9687,7 @@ decSP6502 : M6502 -- M6502
 decSP6502 = match(m6502 ->) dip(dip(decR8)) m6502
 
 incPC6502 : Int M6502 -- M6502
-incPC6502 = swap dip(match(m6502 ->)) swap dip(swap dip(swap dip(swap dip(swap dip(swap dip(swap drop v16)))))) m6502
-
-getFlags6502 : M6502 -- R8
-getFlags6502 = match(m6502 ->) drop dip(drop drop drop drop drop)
+incPC6502 = dup getPC6502 swap dip(addR16) setPC6502
 
 fetchPCEffect : M6502 -- M6502 M6502Effect
 fetchPCEffect = fetch nextState6502 dup getPC6502 match(v16 ->) fetchByte
@@ -9737,14 +9734,28 @@ isSetBit = / 2 % 1 eq
 80 2 isSetBit == false
 80 1 isSetBit == false
 
+setBit : R8 Int -- R8
+setBit = dip(getR8 dup) dup dip(swap) isSetBit if(drop,+) v8
+
+24 v8 16 setBit == 24 v8
+0 v8 16 setBit == 16 v8
+3 v8 16 setBit == 19 v8
+
+dropBit : R8 Int -- R8
+dropBit = dip(getR8 dup) dup dip(swap) isSetBit if(-,drop) v8
+
+24 v8 16 dropBit == 8 v8
+0 v8 16 dropBit == 0 v8
+16 v8 16 dropBit == 0 v8
+
 setBrkBit : R8 -- R8
-setBrkBit = dup getR8 16 isSetBit if(,match(v8 -> 16 + v8))
+setBrkBit = 16 setBit
 
 setBreakInFlagsIfRequired : M6502InterruptType M6502 R8 -- M6502InterruptType M6502 R8
 setBreakInFlagsIfRequired = dip(dip(dup)) rotl match(brk -> setBrkBit, irq ->)
 
 pushFlagsIntr : R8 M6502InterruptType M6502 -- M6502InterruptType M6502 M6502Effect
-pushFlagsIntr = dip(dip(drop)) dup getFlags6502 setBreakInFlagsIfRequired push6502
+pushFlagsIntr = dip(dip(drop)) dup getF6502 setBreakInFlagsIfRequired push6502
 
 pushedFlagsIntr : R8 M6502 -- M6502 M6502Effect
 pushedFlagsIntr = dip(drop) intrWantPCLsb nextState6502 0xfffe fetchByte
@@ -9806,8 +9817,22 @@ adjustPCAfterInsn = instrSizeDD instrSizeDS dip(dip(1 + + swap incPC6502))
 nopInst : R8 M6502 M6502DataSource M6502DataDest -- M6502 M6502Effect
 nopInst = adjustPCAfterInsn drop drop swap drop fetchPCEffect
 
+setFlagIf : R8 Bool Int -- R8
+setFlagIf = swap if(setBit,dropBit)
+
+v8zero true 128 setFlagIf == 128 v8
+
+setNZFlags : M6502 Bool Bool -- M6502
+setNZFlags = dip2(dup getF6502) dip(4 setFlagIf) 128 setFlagIf swap setF6502
+
+getNZFlagsToSet : R8 -- Bool Bool
+getNZFlagsToSet = getR8 dup 128 isSetBit dip (0 eq)
+
+consumeSetNZFlags : R8 M6502 -- M6502
+consumeSetNZFlags = swap getNZFlagsToSet setNZFlags
+
 setRegister(setter : R8 M6502 -- M6502) : R8 M6502 -- M6502 M6502Effect
-setRegister(setter) = setter fetchPCEffect
+setRegister(setter) = dip(dup) setter consumeSetNZFlags fetchPCEffect
 
 zpxWrite : R8 M6502 Int -- M6502 M6502Effect
 zpxWrite = drop dip(drop) fetchPCEffect
@@ -9894,13 +9919,16 @@ requestZPxOperand = drop v8zero rotr continueInstruction
 requestAbsLsb : M6502 M6502Instruction Int -- M6502 M6502Effect
 requestAbsLsb = drop v8zero rotr continueInstruction
 
+extractReg(getter : M6502 -- R8) : M6502 -- R8 M6502
+extractReg(getter) = dup getter swap
+
 performInstruction : M6502 M6502Instruction M6502DataSource -- M6502 M6502Effect
 performInstruction = match(ds_DUMMY -> v8zero rotr continueInstruction,
-  ds_A -> v8zero rotr continueInstruction,
-  ds_X -> v8zero rotr continueInstruction,
-  ds_Y -> v8zero rotr continueInstruction,
-  ds_S -> v8zero rotr continueInstruction,
-  ds_F -> v8zero rotr continueInstruction,
+  ds_A -> dip(extractReg(getA6502)) continueInstruction,
+  ds_X -> dip(extractReg(getX6502)) continueInstruction,
+  ds_Y -> dip(extractReg(getY6502)) continueInstruction,
+  ds_S -> dip(extractReg(getSP6502)) continueInstruction,
+  ds_F -> dip(extractReg(getF6502)) continueInstruction,
   ds_Imm8 -> requestImm8Operand,
   ds_zp -> 0 requestZPxOperand,
   ds_zpX -> 1 requestZPxOperand,
@@ -9939,6 +9967,8 @@ runOneStep = dup stateOf6502 match(reset -> readByteAfterReset,
   fetchOperandAbsLsb -> drop runOneStepDummy,
   fetchOperandAbsHaveLsb -> drop drop runOneStepDummy)
 
+0x80 v8 emptyM6502 setF6502 == v16zero v8zero v8zero v8zero v8zero 0x80 v8 reset m6502
+
 s1 : M6502 M6502Effect
 s1 = v8zero emptyM6502 runOneStep
 s1 == v16zero v8zero v8zero v8zero v8zero v8zero resetReceiveFirstByte m6502 0xfffc fetchByte
@@ -9952,19 +9982,18 @@ s3 == 0xcdab v16 v8zero v8zero v8zero v8zero v8zero fetch m6502 0xcdab fetchByte
 # s4 = 0xcb v8 s3 drop runOneStep
 # s4 == 0xcdac v16 v8zero v8zero v8zero v8zero v8zero fetch m6502 0xcdac fetchByte
 
-# runOneStep = dup stateOf6502 match(reset -> readByteAfterReset,
-#   resetReceiveFirstByte -> received1stByteOfAddrAfterReset,
-#   resetReceiveSecondByte -> received2ndByteOfAddrAfterReset,
+cpuAEq33 : M6502
+cpuAEq33 = 0x33 v8 s3 drop setA6502
+cpuTAX1 : M6502 M6502Effect
+cpuTAX1 = 0xaa v8 cpuAEq33 runOneStep
+cpuTAX1 == 0xcdac v16 0x33 v8 0x33 v8 v8zero v8zero v8zero fetch m6502 0xcdac fetchByte
 
-#   intr -> pushPCByteLsbIntr,
-#   intrPushedPCByteLsb -> pushPCByteMsbIntr,
-#   intrPushedPCByteMsb -> pushFlagsIntr,
-#   intrPushedFlagsWantPCLsb -> pushedFlagsIntr,
-#   intrWantPCLsb -> havePCLsbIntr,
-#   intrGotPCLsb -> havePCMsbIntr,
-  
-#   fetch -> haveInstructionByte)
-  
+cpuAEq8f : M6502
+cpuAEq8f = 0x8f v8 s3 drop setA6502
+cpuTAXN : M6502 M6502Effect
+cpuTAXN = 0xaa v8 cpuAEq8f runOneStep
+cpuTAXN == 0xcdac v16 0x8f v8 0x8f v8 v8zero v8zero 0x80 v8 fetch m6502 0xcdac fetchByte
+
 data TestComputer
   testComputer : M6502 Ram -- TestComputer
 end
