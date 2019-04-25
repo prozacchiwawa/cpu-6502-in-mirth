@@ -9921,7 +9921,7 @@ setFlag : R8 M6502 M6502DataSource M6502DataDest M6502Flag -- M6502 M6502Effect
 setFlag = match(carry -> setFlagInt(1),
   interrupt -> setFlagInt(4),
   overflow -> setFlagInt(0x40),
-  direction -> setFlagInt(0x80))
+  direction -> setFlagInt(0x08))
 
 clrFlag : R8 M6502 M6502DataSource M6502DataDest M6502Flag -- M6502 M6502Effect
 clrFlag = match(carry -> clrFlagInt(1),
@@ -10163,7 +10163,7 @@ cldINST = direction CLx ds_DUMMY dd_DUMMY di
 cpuCLDZp1 : M6502 M6502Effect
 cpuCLDZp1 = 0xd8 v8 cpuAEq33 runOneStep
 cpuCLDZp2 : M6502 M6502Effect
-cpuCLDZp2 = 0xcdac v16 0x33 v8 v8zero v8zero v8zero 8 v8 fetch m6502 0xcdac fetchByte
+cpuCLDZp2 = 0xcdac v16 0x33 v8 v8zero v8zero v8zero v8zero fetch m6502 0xcdac fetchByte
 
 inyINST : M6502Instruction
 inyINST = INx ds_Y dd_Y di
