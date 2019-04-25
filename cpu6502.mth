@@ -9094,7 +9094,7 @@ data M6502State
   fetchOperandAbsLsb : M6502Instruction -- M6502State
   fetchOperandAbsHaveLsb : R8 M6502Instruction -- M6502State
 
- 
+  fetchZPByteDest : R8 M6502ZPRegister -- M6502State
 
 #  intrSet : M6502State -- M6502State
 #  nmiSet : M6502State -- M6502State
@@ -9844,10 +9844,21 @@ consumeSetNZFlags : R8 M6502 -- M6502
 consumeSetNZFlags = swap getNZFlagsToSet setNZFlags
 
 setRegister(setter : R8 M6502 -- M6502) : R8 M6502 -- M6502 M6502Effect
-setRegister(setter) = dip(dup) setter consumeSetNZFlags fetchPCEffect
+setRegister(setter) = setter fetchPCEffect
+
+finishZpxWrite : Int M6502 R8 M6502ZPRegister -- M6502 M6502Effect
+finishZpxWrite = fetchZPByteDest nextState6502 dup getPC6502 match(v16 -> 1 -) dip(swap) + fetchByte
+
+beginZpxWriteWithGetter(getter : M6502 -- R8) : R8 M6502 -- Int M6502 R8
+beginZpxWriteWithGetter(getter) = swap dup dip(swap consumeSetNZFlags) dip(dup getter getR8 swap)
+
+beginZpxWrite : R8 M6502 M6502ZPRegister -- Int M6502 R8
+beginZpxWrite = match(justZP -> beginZpxWriteWithGetter(drop 0 v8),
+  zpPlusX -> beginZpxWriteWithGetter(getX6502),
+  zpPlusY -> beginZpxWriteWithGetter(getY6502))
 
 zpxWrite : R8 M6502 M6502ZPRegister -- M6502 M6502Effect
-zpxWrite = drop dip(drop) fetchPCEffect
+zpxWrite = dup dip(beginZpxWrite) finishZpxWrite
 
 absWrite : R8 M6502 Int -- M6502 M6502Effect
 absWrite = drop dip(drop) fetchPCEffect
@@ -9861,8 +9872,8 @@ writeIndexedIndirectX = dip(drop) fetchPCEffect
 writeIndirectIndexedY : R8 M6502 -- M6502 M6502Effect
 writeIndirectIndexedY = dip(drop) fetchPCEffect
 
-transfer : R8 M6502 M6502DataSource M6502DataDest -- M6502 M6502Effect
-transfer = adjustPCAfterInsn swap drop match(dd_DUMMY -> swap drop fetchPCEffect,
+writeOutput : R8 M6502 M6502DataDest -- M6502 M6502Effect
+writeOutput = match(dd_DUMMY -> swap drop fetchPCEffect,
   dd_A -> setRegister(setA6502),
   dd_X -> setRegister(setX6502),
   dd_Y -> setRegister(setY6502),
@@ -9877,6 +9888,9 @@ transfer = adjustPCAfterInsn swap drop match(dd_DUMMY -> swap drop fetchPCEffect
   dd_Stack -> stackPush,
   dd_indexedIndirectX -> writeIndexedIndirectX,
   dd_indirectIndexedY -> writeIndirectIndexedY)
+
+transfer : R8 M6502 M6502DataSource M6502DataDest -- M6502 M6502Effect
+transfer = adjustPCAfterInsn swap drop dip(dip(dup) consumeSetNZFlags) writeOutput
 
 doInstructionBody : R8 M6502 M6502DataSource M6502DataDest M6502InstLabel -- M6502 M6502Effect
 doInstructionBody = match(ADC -> nopInst,
@@ -9906,7 +9920,7 @@ doInstructionBody = match(ADC -> nopInst,
   RTS -> nopInst,
   SBC -> nopInst,
   SEx -> drop nopInst,
-  STx -> nopInst,
+  STx -> transfer,
   Txy -> transfer,
   WAI -> nopInst)
 
@@ -9991,7 +10005,10 @@ runOneStep = dup stateOf6502 match(reset -> readByteAfterReset,
   fetchZPByte -> doFetchZPByte,
   
   fetchOperandAbsLsb -> drop runOneStepDummy,
-  fetchOperandAbsHaveLsb -> drop drop runOneStepDummy)
+  fetchOperandAbsHaveLsb -> drop drop runOneStepDummy,
+
+  fetchZPByteDest -> drop drop runOneStepDummy
+  )
 
 0x80 v8 emptyM6502 setF6502 == v16zero v8zero v8zero v8zero v8zero 0x80 v8 reset m6502
 
@@ -10041,6 +10058,14 @@ cpuLDYZp3 : M6502 M6502Effect
 cpuLDYZp3 = 0x22 v8 cpuLDYZp2 drop runOneStep
 cpuLDYZp3 == 0xcdad v16 0x33 v8 v8zero 0x22 v8 v8zero v8zero fetch m6502 0xcdad fetchByte
 
+cpuYEq33 : M6502
+cpuYEq33 = 0x33 v8 s3 drop setY6502
+
+stxZpYINST : M6502Instruction
+stxZpYINST = STx ds_Y dd_zpX di
+cpuSTYZp1 : M6502 M6502Effect
+cpuSTYZp1 = 0x94 v8 cpuYEq33 runOneStep
+cpuSTYZp1 == 0xcdad v16 v8zero v8zero 0x33 v8 v8zero v8zero 0x33 v8 zpPlusX fetchZPByteDest m6502 0xcdac fetchByte
 
 data TestComputer
   testComputer : M6502 Ram -- TestComputer
