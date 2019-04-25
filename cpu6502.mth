@@ -9696,6 +9696,9 @@ getR8 = match(v8 -> )
 addR8NC : R8 R8 -- R8
 addR8NC = dip(getR8) getR8 + 256 % v8
 
+addR8 : Int R8 -- R8
+addR8 = match(v8 -> ) + 256 % v8
+
 addR16 : Int R16 -- R16
 addR16 = match(v16 -> ) + 65536 % v16
 
@@ -9847,6 +9850,9 @@ getNZFlagsToSet = getR8 dup 128 isSetBit dip (0 eq)
 consumeSetNZFlags : R8 M6502 -- M6502
 consumeSetNZFlags = swap getNZFlagsToSet setNZFlags
 
+leaveSetNZFlags : R8 M6502 -- R8 M6502
+leaveSetNZFlags = dip(dup) consumeSetNZFlags
+
 setRegister(setter : R8 M6502 -- M6502) : R8 M6502 -- M6502 M6502Effect
 setRegister(setter) = setter fetchPCEffect
 
@@ -9923,6 +9929,9 @@ clrFlag = match(carry -> clrFlagInt(1),
   overflow -> clrFlagInt(0x40),
   direction -> clrFlagInt(0x08))
 
+binAddConst : R8 M6502 M6502DataSource M6502DataDest Int -- M6502 M6502Effect
+binAddConst = rotr dip2(swap) adjustPCAfterInsn swap drop dip2(swap addR8) dip(leaveSetNZFlags) writeOutput
+
 doInstructionBody : R8 M6502 M6502DataSource M6502DataDest M6502InstLabel -- M6502 M6502Effect
 doInstructionBody = match(ADC -> nopInst,
   AND -> nopInst,
@@ -9934,9 +9943,9 @@ doInstructionBody = match(ADC -> nopInst,
   CMP -> nopInst,
   CPX -> nopInst,
   CPY -> nopInst,
-  DEx -> nopInst,
+  DEx -> 255 binAddConst,
   EOR -> nopInst,
-  INx -> nopInst,
+  INx -> 1 binAddConst,
   JMP -> nopInst,
   JSR -> nopInst,
   LDx -> transfer,
@@ -10155,6 +10164,13 @@ cpuCLDZp1 : M6502 M6502Effect
 cpuCLDZp1 = 0xd8 v8 cpuAEq33 runOneStep
 cpuCLDZp2 : M6502 M6502Effect
 cpuCLDZp2 = 0xcdac v16 0x33 v8 v8zero v8zero v8zero 8 v8 fetch m6502 0xcdac fetchByte
+
+inyINST : M6502Instruction
+inyINST = INx ds_Y dd_Y di
+cpuINYZp1 : M6502 M6502Effect
+cpuINYZp1 = 0xc8 v8 cpuAEq33 runOneStep
+cpuINYZp2 : M6502 M6502Effect
+cpuINYZp2 = 0xcdac v16 0x33 v8 v8zero 1 v8 v8zero v8zero fetch m6502 0xcdac fetchByte
 
 data TestComputer
   testComputer : M6502 Ram -- TestComputer
