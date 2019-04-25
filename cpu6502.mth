@@ -9068,6 +9068,12 @@ data M6502Instruction
   di : M6502InstLabel M6502DataSource M6502DataDest -- M6502Instruction
 end
 
+data M6502ZPRegister
+  justZP : M6502ZPRegister
+  zpPlusX : M6502ZPRegister
+  zpPlusY : M6502ZPRegister
+end
+
 data M6502State
   reset : M6502State
   resetReceiveFirstByte : M6502State
@@ -9082,6 +9088,9 @@ data M6502State
   
   fetch : M6502State
   fetchOperand : M6502Instruction -- M6502State
+
+  fetchZPByte : M6502Instruction M6502ZPRegister -- M6502State
+
   fetchOperandAbsLsb : M6502Instruction -- M6502State
   fetchOperandAbsHaveLsb : R8 M6502Instruction -- M6502State
 
@@ -9680,6 +9689,9 @@ decR8 = match(v8 -> ) 1 - v8
 getR8 : R8 -- Int
 getR8 = match(v8 -> )
 
+addR8NC : R8 R8 -- R8
+addR8NC = dip(getR8) getR8 + 256 % v8
+
 addR16 : Int R16 -- R16
 addR16 = match(v16 -> ) + 65536 % v16
 
@@ -9834,7 +9846,7 @@ consumeSetNZFlags = swap getNZFlagsToSet setNZFlags
 setRegister(setter : R8 M6502 -- M6502) : R8 M6502 -- M6502 M6502Effect
 setRegister(setter) = dip(dup) setter consumeSetNZFlags fetchPCEffect
 
-zpxWrite : R8 M6502 Int -- M6502 M6502Effect
+zpxWrite : R8 M6502 M6502ZPRegister -- M6502 M6502Effect
 zpxWrite = drop dip(drop) fetchPCEffect
 
 absWrite : R8 M6502 Int -- M6502 M6502Effect
@@ -9856,9 +9868,9 @@ transfer = adjustPCAfterInsn swap drop match(dd_DUMMY -> swap drop fetchPCEffect
   dd_Y -> setRegister(setY6502),
   dd_S -> setRegister(setS6502),
   dd_F -> setRegister(setF6502),
-  dd_zp -> 0 zpxWrite,
-  dd_zpX -> 1 zpxWrite,
-  dd_zpY -> 2 zpxWrite,
+  dd_zp -> justZP zpxWrite,
+  dd_zpX -> zpPlusX zpxWrite,
+  dd_zpY -> zpPlusY zpxWrite,
   dd_Abs -> 0 absWrite,
   dd_AbsX -> 1 absWrite,
   dd_AbsY -> 2 absWrite,
@@ -9913,8 +9925,16 @@ requestIndexedIndirectX = v8zero rotr continueInstruction
 requestIndirectIndexedY : M6502 M6502Instruction -- M6502 M6502Effect
 requestIndirectIndexedY = v8zero rotr continueInstruction
 
-requestZPxOperand : M6502 M6502Instruction Int -- M6502 M6502Effect
-requestZPxOperand = drop v8zero rotr continueInstruction
+requestZPxOperand : M6502 M6502Instruction M6502ZPRegister -- M6502 M6502Effect
+requestZPxOperand = fetchZPByte nextState6502 dup getPC6502 match(v16 -> 1 + fetchByte)
+
+fetchZPByteWithRegister(getter : M6502 -- R8) : R8 M6502 M6502Instruction -- M6502 M6502Effect
+fetchZPByteWithRegister(getter) = swap dup getter dip(swap rotl) addR8NC getR8 fetchByte dip(fetchOperand nextState6502)
+
+doFetchZPByte : R8 M6502 M6502Instruction M6502ZPRegister -- M6502 M6502Effect
+doFetchZPByte = match(justZP -> rotl getR8 fetchByte dip(fetchOperand nextState6502),
+  zpPlusX -> fetchZPByteWithRegister(getX6502),
+  zpPlusY -> fetchZPByteWithRegister(getY6502))
 
 requestAbsLsb : M6502 M6502Instruction Int -- M6502 M6502Effect
 requestAbsLsb = drop v8zero rotr continueInstruction
@@ -9930,9 +9950,9 @@ performInstruction = match(ds_DUMMY -> v8zero rotr continueInstruction,
   ds_S -> dip(extractReg(getSP6502)) continueInstruction,
   ds_F -> dip(extractReg(getF6502)) continueInstruction,
   ds_Imm8 -> requestImm8Operand,
-  ds_zp -> 0 requestZPxOperand,
-  ds_zpX -> 1 requestZPxOperand,
-  ds_zpY -> 2 requestZPxOperand,
+  ds_zp -> justZP requestZPxOperand,
+  ds_zpX -> zpPlusX requestZPxOperand,
+  ds_zpY -> zpPlusY requestZPxOperand,
   ds_indexedIndirectX -> requestIndexedIndirectX,
   ds_indirectIndexedY -> requestIndirectIndexedY,
   ds_Abs -> 0 requestAbsLsb,
@@ -9967,6 +9987,9 @@ runOneStep = dup stateOf6502 match(reset -> readByteAfterReset,
   
   fetch -> haveInstructionByte,
   fetchOperand -> haveOperandByte,
+
+  fetchZPByte -> doFetchZPByte,
+  
   fetchOperandAbsLsb -> drop runOneStepDummy,
   fetchOperandAbsHaveLsb -> drop drop runOneStepDummy)
 
@@ -10005,6 +10028,19 @@ cpuLDA1 == 0xcdab v16 0x33 v8 v8zero v8zero v8zero v8zero ldaINST fetchOperand m
 cpuLDA2 : M6502 M6502Effect
 cpuLDA2 = 0x55 v8 cpuLDA1 drop runOneStep
 cpuLDA2 == 0xcdad v16 0x55 v8 v8zero v8zero v8zero v8zero fetch m6502 0xcdad fetchByte
+
+ldyZpINST : M6502Instruction
+ldyZpINST = LDx ds_zp dd_Y di
+cpuLDYZp1 : M6502 M6502Effect
+cpuLDYZp1 = 0xa4 v8 cpuAEq33 runOneStep
+cpuLDYZp1 == 0xcdab v16 0x33 v8 v8zero v8zero v8zero v8zero ldyZpINST justZP fetchZPByte m6502 0xcdac fetchByte
+cpuLDYZp2 : M6502 M6502Effect
+cpuLDYZp2 = 0x11 v8 cpuLDYZp1 drop runOneStep
+cpuLDYZp2 == 0xcdab v16 0x33 v8 v8zero v8zero v8zero v8zero ldyZpINST fetchOperand m6502 0x11 fetchByte
+cpuLDYZp3 : M6502 M6502Effect
+cpuLDYZp3 = 0x22 v8 cpuLDYZp2 drop runOneStep
+cpuLDYZp3 == 0xcdad v16 0x33 v8 v8zero 0x22 v8 v8zero v8zero fetch m6502 0xcdad fetchByte
+
 
 data TestComputer
   testComputer : M6502 Ram -- TestComputer
