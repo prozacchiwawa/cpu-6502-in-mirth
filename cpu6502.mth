@@ -9882,7 +9882,7 @@ doInstructionBody = match(ADC -> nopInst,
   INx -> nopInst,
   JMP -> nopInst,
   JSR -> nopInst,
-  LDx -> nopInst,
+  LDx -> transfer,
   LSR -> nopInst,
   NOP -> nopInst,
   ORA -> nopInst,
@@ -9902,7 +9902,7 @@ continueInstruction : R8 M6502 M6502Instruction -- M6502 M6502Effect
 continueInstruction = match(di -> rotl doInstructionBody)
 
 requestImm8Operand : M6502 M6502Instruction -- M6502 M6502Effect
-requestImm8Operand = v8zero rotr continueInstruction
+requestImm8Operand = fetchOperand nextState6502 dup getPC6502 match(v16 -> 1 + fetchByte)
 
 requestStackPop : M6502 M6502Instruction -- M6502 M6502Effect
 requestStackPop = v8zero rotr continueInstruction
@@ -9978,9 +9978,9 @@ s2 == v16zero v8zero v8zero v8zero v8zero v8zero 0xab v8 resetReceiveSecondByte 
 s3 : M6502 M6502Effect
 s3 = 0xcd v8 s2 drop runOneStep
 s3 == 0xcdab v16 v8zero v8zero v8zero v8zero v8zero fetch m6502 0xcdab fetchByte
-# s4 : M6502 M6502Effect
-# s4 = 0xcb v8 s3 drop runOneStep
-# s4 == 0xcdac v16 v8zero v8zero v8zero v8zero v8zero fetch m6502 0xcdac fetchByte
+s4 : M6502 M6502Effect
+s4 = 0xcb v8 s3 drop runOneStep
+s4 == 0xcdac v16 v8zero v8zero v8zero v8zero v8zero fetch m6502 0xcdac fetchByte
 
 cpuAEq33 : M6502
 cpuAEq33 = 0x33 v8 s3 drop setA6502
@@ -9993,6 +9993,12 @@ cpuAEq8f = 0x8f v8 s3 drop setA6502
 cpuTAXN : M6502 M6502Effect
 cpuTAXN = 0xaa v8 cpuAEq8f runOneStep
 cpuTAXN == 0xcdac v16 0x8f v8 0x8f v8 v8zero v8zero 0x80 v8 fetch m6502 0xcdac fetchByte
+
+ldaINST : M6502Instruction
+ldaINST = LDx ds_Imm8 dd_A di
+cpuLDA : M6502 M6502Effect
+cpuLDA = 0xa9 v8 cpuAEq33 runOneStep
+cpuLDA == 0xcdab v16 0x33 v8 v8zero v8zero v8zero v8zero ldaINST fetchOperand m6502 0xcdac fetchByte
 
 data TestComputer
   testComputer : M6502 Ram -- TestComputer
