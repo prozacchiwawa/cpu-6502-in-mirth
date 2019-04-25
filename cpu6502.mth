@@ -9660,8 +9660,8 @@ setX6502 = match(m6502 ->) dip3(dip(dip(rotl) drop)) m6502
 setY6502 : R8 M6502 -- M6502
 setY6502 = match(m6502 ->) dip3(dip2(rotl) rotl swap drop) m6502
 
-setS6502 : R8 M6502 -- M6502
-setS6502 = match(m6502 ->) dip3(dip2(rotl) rotl) dip3(swap) dip2(drop) m6502
+setS6502 : R8 M6502 -- M6502 
+setS6502 = swap dip(match(m6502 ->)) rotr dip2(swap drop) m6502
 
 setF6502 : R8 M6502 -- M6502
 setF6502 = swap dip(match(m6502 ->)) rotr dip(drop) m6502
@@ -9873,8 +9873,11 @@ zpxWrite = dup dip(beginZpxWrite) finishZpxWrite
 absWrite : R8 M6502 Int -- M6502 M6502Effect
 absWrite = drop dip(drop) fetchPCEffect
 
+nextPrefetch : M6502 -- M6502
+nextPrefetch = dip(1) incPC6502 prefetch nextState6502
+
 stackPush : R8 M6502 -- M6502 M6502Effect
-stackPush = swap push6502 dip(prefetch nextState6502)
+stackPush = swap push6502 dip(nextPrefetch)
 
 writeIndexedIndirectX : R8 M6502 -- M6502 M6502Effect
 writeIndexedIndirectX = dip(drop) fetchPCEffect
@@ -10148,29 +10151,25 @@ phfINST : M6502Instruction
 phfINST = PHf ds_F dd_Stack di
 cpuPHFZp1 : M6502 M6502Effect
 cpuPHFZp1 = 0x08 v8 cpuStackAddr runOneStep
-cpuPHFZp2 : M6502 M6502Effect
-cpuPHFZp2 = 0xcdad v16 0x33 v8 v8zero v8zero 0xfe v8 2 v8 prefetch m6502 0x1ff 2 v8 writeByte
+cpuPHFZp1 == 0xcdad v16 0x33 v8 v8zero v8zero 0xfe v8 2 v8 prefetch m6502 0x1ff 2 v8 writeByte
 
 seiINST : M6502Instruction
 seiINST = interrupt SEx ds_DUMMY dd_DUMMY di
 cpuSEIZp1 : M6502 M6502Effect
 cpuSEIZp1 = 0x78 v8 cpuAEq33 runOneStep
-cpuSEIZp2 : M6502 M6502Effect
-cpuSEIZp2 = 0xcdac v16 0x33 v8 v8zero v8zero v8zero 4 v8 fetch m6502 0xcdac fetchByte
+cpuSEIZp1 == 0xcdac v16 0x33 v8 v8zero v8zero v8zero 4 v8 fetch m6502 0xcdac fetchByte
 
 cldINST : M6502Instruction
 cldINST = direction CLx ds_DUMMY dd_DUMMY di
 cpuCLDZp1 : M6502 M6502Effect
 cpuCLDZp1 = 0xd8 v8 cpuAEq33 runOneStep
-cpuCLDZp2 : M6502 M6502Effect
-cpuCLDZp2 = 0xcdac v16 0x33 v8 v8zero v8zero v8zero v8zero fetch m6502 0xcdac fetchByte
+cpuCLDZp1 == 0xcdac v16 0x33 v8 v8zero v8zero v8zero v8zero fetch m6502 0xcdac fetchByte
 
 inyINST : M6502Instruction
 inyINST = INx ds_Y dd_Y di
 cpuINYZp1 : M6502 M6502Effect
 cpuINYZp1 = 0xc8 v8 cpuAEq33 runOneStep
-cpuINYZp2 : M6502 M6502Effect
-cpuINYZp2 = 0xcdac v16 0x33 v8 v8zero 1 v8 v8zero v8zero fetch m6502 0xcdac fetchByte
+cpuINYZp1 == 0xcdac v16 0x33 v8 v8zero 1 v8 v8zero v8zero fetch m6502 0xcdac fetchByte
 
 data TestComputer
   testComputer : M6502 Ram -- TestComputer
