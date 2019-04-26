@@ -9114,53 +9114,6 @@ data M6502
   m6502 : R16 R8 R8 R8 R8 R8 M6502State -- M6502
 end
 
-nopInstruction : M6502 -- M6502 M6502Effect
-nopInstruction = noEff
-
-group1Instruction : M6502 -- M6502 M6502Effect
-group1Instruction = nopInstruction
-
-group2Instruction : M6502 -- M6502 M6502Effect
-group2Instruction = nopInstruction
-
-group0Instruction : M6502 -- M6502 M6502Effect
-group0Instruction = nopInstruction
-
-zpInstruction : M6502 -- M6502 M6502Effect
-zpInstruction = nopInstruction
-
-# No group 3
-
-conditionalBranch : M6502 -- M6502 M6502Effect
-conditionalBranch = nopInstruction
-
-brkInstruction : M6502 -- M6502 M6502Effect
-brkInstruction = nopInstruction
-jsrInstruction : M6502 -- M6502 M6502Effect
-jsrInstruction = nopInstruction
-rtiInstruction : M6502 -- M6502 M6502Effect
-rtiInstruction = nopInstruction
-rtsInstruction : M6502 -- M6502 M6502Effect
-rtsInstruction = nopInstruction
-
-phxInstruction : M6502 -- M6502 M6502Effect
-phxInstruction = nopInstruction
-plxInstruction : M6502 -- M6502 M6502Effect
-plxInstruction = nopInstruction
-deyInstruction : M6502 -- M6502 M6502Effect
-deyInstruction = nopInstruction
-tayInstruction : M6502 -- M6502 M6502Effect
-tayInstruction = nopInstruction
-inxInstruction : M6502 -- M6502 M6502Effect
-inxInstruction = nopInstruction
-
-# CLx STx
-flgInstruction : M6502 -- M6502 M6502Effect
-flgInstruction = nopInstruction
-
-waiInstruction : M6502 -- M6502 M6502Effect
-waiInstruction = nopInstruction
-
 data M6502InstCategory
   g1 : -- M6502InstCategory
   g2 : -- M6502InstCategory
@@ -9696,6 +9649,34 @@ getR8 = match(v8 -> )
 addR8NC : R8 R8 -- R8
 addR8NC = dip(getR8) getR8 + 256 % v8
 
+hexDigits : R8 -- Int Int
+hexDigits = getR8 dup 16 / 16 % dip(16 %)
+
+data BCDResult
+  bcd : Int Int Bool Bool Bool -- BCDResult
+end
+
+getR8BCD : R8 -- BCDResult
+getR8BCD = hexDigits false false false bcd
+
+0xa9 v8 getR8BCD == 9 10 false false false bcd
+
+getLowDigit : BCDResult -- Int
+getLowDigit = match(bcd -> drop drop drop drop)
+
+0xa9 v8 getR8BCD getLowDigit == 9
+
+getHighDigit : BCDResult -- Int
+getHighDigit = match(bcd -> drop drop drop swap drop)
+
+0xa9 v8 getR8BCD getHighDigit == 10
+
+min : Int Int -- Int
+min = >? if(drop, swap drop)
+
+# min 3 4 == 3
+# min 4 3 == 3
+
 addR8 : Int R8 -- R8
 addR8 = match(v8 -> ) + 256 % v8
 
@@ -9830,11 +9811,11 @@ instrSizeDS = swap dup match(ds_DUMMY -> 0,
   ds_AbsX -> 2,
   ds_AbsY -> 2) dip(swap) rotr
 
-adjustPCAfterInsn : M6502 M6502DataSource M6502DataDest -- M6502 M6502DataSource M6502DataDest 
-adjustPCAfterInsn = instrSizeDD instrSizeDS dip(dip(1 + + swap incPC6502))
+adjustPCAfterInsn(n : Int) : M6502 M6502DataSource M6502DataDest -- M6502 M6502DataSource M6502DataDest 
+adjustPCAfterInsn(n) = instrSizeDD instrSizeDS dip(dip(n + + swap incPC6502))
 
 nopInst : R8 M6502 M6502DataSource M6502DataDest -- M6502 M6502Effect
-nopInst = adjustPCAfterInsn drop drop swap drop fetchPCEffect
+nopInst = adjustPCAfterInsn(1) drop drop swap drop fetchPCEffect
 
 setFlagIf : R8 Bool Int -- R8
 setFlagIf = swap if(setBit,dropBit)
@@ -9906,19 +9887,19 @@ pushOutput : R8 M6502 M6502DataDest -- M6502 M6502Effect
 pushOutput = writeOutput
 
 transfer : R8 M6502 M6502DataSource M6502DataDest -- M6502 M6502Effect
-transfer = adjustPCAfterInsn swap drop dip(dip(dup) consumeSetNZFlags) writeOutput
+transfer = adjustPCAfterInsn(1) swap drop dip(dip(dup) consumeSetNZFlags) writeOutput
 
 store : R8 M6502 M6502DataSource M6502DataDest -- M6502 M6502Effect
-store = adjustPCAfterInsn swap drop dip(dip(dup) swap drop) writeOutput
+store = adjustPCAfterInsn(1) swap drop dip(dip(dup) swap drop) writeOutput
 
 push : R8 M6502 M6502DataSource M6502DataDest -- M6502 M6502Effect
-push = adjustPCAfterInsn swap drop dip(dip(dup) swap drop) pushOutput
+push = adjustPCAfterInsn(1) swap drop dip(dip(dup) swap drop) pushOutput
 
 setFlagInt(val : Int) : R8 M6502 M6502DataSource M6502DataDest -- M6502 M6502Effect
-setFlagInt(val) = adjustPCAfterInsn swap drop dip2(val setBit) writeOutput
+setFlagInt(val) = adjustPCAfterInsn(1) swap drop dip2(val setBit) writeOutput
 
 clrFlagInt(val : Int) : R8 M6502 M6502DataSource M6502DataDest -- M6502 M6502Effect
-clrFlagInt(val) = adjustPCAfterInsn swap drop dip2(val dropBit) writeOutput
+clrFlagInt(val) = adjustPCAfterInsn(1) swap drop dip2(val dropBit) writeOutput
 
 setFlag : R8 M6502 M6502DataSource M6502DataDest M6502Flag -- M6502 M6502Effect
 setFlag = match(carry -> setFlagInt(1),
@@ -9932,14 +9913,20 @@ clrFlag = match(carry -> clrFlagInt(1),
   overflow -> clrFlagInt(0x40),
   direction -> clrFlagInt(0x08))
 
+genAddConst(addfn : Int R8 -- R8, leaveSetFlags : R8 M6502 -- R8 M6502) : R8 M6502 M6502DataSource M6502DataDest Int -- M6502 M6502Effect
+genAddConst(addfn, leaveSetFlags) = rotr dip2(swap) adjustPCAfterInsn(1) swap drop dip2(swap addfn) dip(leaveSetFlags) writeOutput
+
 binAddConst : R8 M6502 M6502DataSource M6502DataDest Int -- M6502 M6502Effect
-binAddConst = rotr dip2(swap) adjustPCAfterInsn swap drop dip2(swap addR8) dip(leaveSetNZFlags) writeOutput
+binAddConst = genAddConst(addR8, leaveSetNZFlags)
+
+brkInst : R8 M6502 M6502DataSource M6502DataDest -- M6502 M6502Effect
+brkInst = adjustPCAfterInsn(2) drop drop swap drop brk intrPushedPCByteLsb nextState6502 dup getPC6502 match(v16 -> 256 % v8 push6502)
 
 doInstructionBody : R8 M6502 M6502DataSource M6502DataDest M6502InstLabel -- M6502 M6502Effect
 doInstructionBody = match(ADC -> nopInst,
   AND -> nopInst,
   ASL -> nopInst,
-  BRK -> nopInst,
+  BRK -> brkInst,
   BIT -> nopInst,
   Bxx -> drop drop nopInst,
   CLx -> clrFlag,
@@ -10030,6 +10017,11 @@ haveInstructionByte = swap categorizeInstruction decodeInstruction dup getInstru
 haveOperandByte : R8 M6502 M6502Instruction -- M6502 M6502Effect
 haveOperandByte = continueInstruction
 
+# pushOutput : R8 M6502 M6502DataDest -- M6502 M6502Effect
+# pushOutput = writeOutput
+interruptPushPCLsb : R8 M6502 M6502InterruptType -- M6502 M6502Effect
+interruptPushPCLsb = dip(dup getPC6502 match(v16 -> 256 %) v8 rotr dip(drop) dd_Stack writeOutput) swap dip(intrPushedPCByteLsb nextState6502)
+
 emptyM6502 : -- M6502
 emptyM6502 = v16zero v8zero v8zero v8zero v8zero v8zero reset m6502
 
@@ -10041,7 +10033,7 @@ runOneStep = dup stateOf6502 match(reset -> readByteAfterReset,
   resetReceiveFirstByte -> received1stByteOfAddrAfterReset,
   resetReceiveSecondByte -> swap received2ndByteOfAddrAfterReset,
 
-  intr -> drop runOneStepDummy,
+  intr -> interruptPushPCLsb,
   intrPushedPCByteLsb -> drop runOneStepDummy,
   intrPushedPCByteMsb -> drop runOneStepDummy,
   intrPushedFlags -> runOneStepDummy,
@@ -10170,6 +10162,12 @@ inyINST = INx ds_Y dd_Y di
 cpuINYZp1 : M6502 M6502Effect
 cpuINYZp1 = 0xc8 v8 cpuAEq33 runOneStep
 cpuINYZp1 == 0xcdac v16 0x33 v8 v8zero 1 v8 v8zero v8zero fetch m6502 0xcdac fetchByte
+
+brkINST : M6502Instruction
+brkINST = BRK ds_DUMMY dd_DUMMY di
+cpuBRKZp1 : M6502 M6502Effect
+cpuBRKZp1 = 0 v8 cpuAEq33 runOneStep
+cpuBRKZp1 == 0xcdad v16 0x33 v8 v8zero v8zero 0xff v8 v8zero brk intrPushedPCByteLsb m6502 0x100 0xad v8 writeByte
 
 data TestComputer
   testComputer : M6502 Ram -- TestComputer
