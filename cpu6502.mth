@@ -1,9 +1,63 @@
+# R8
 data R8
   v8 : Int -- R8
 end
 
 v8zero : -- R8
 v8zero = 0 v8
+
+getR8 : R8 -- Int
+getR8 = match(v8 -> )
+
+incR8 : R8 -- R8
+incR8 = getR8 1 + 256 % v8
+
+decR8 : R8 -- R8
+decR8 = getR8 255 + 256 % v8
+
+addR8NC : R8 R8 -- R8
+addR8NC = dip(getR8) getR8 + 256 % v8
+
+hexDigits : R8 -- Int Int
+hexDigits = getR8 dup 16 / 16 % dip(16 %)
+
+fromHexDigitsHL : Int Int -- R8
+fromHexDigitsHL = swap 16 % 16 * swap 16 % + v8
+
+addR8 : Int R8 -- R8
+addR8 = match(v8 -> ) + 256 % v8
+
+isSetBit : Int Int -- Bool
+isSetBit = / 2 % 1 eq
+
+11 16 isSetBit == false
+11 8 isSetBit == true
+11 4 isSetBit == false
+11 2 isSetBit == true
+11 1 isSetBit == true
+
+80 128 isSetBit == false
+80 64 isSetBit == true
+80 32 isSetBit == false
+80 16 isSetBit == true
+80 8 isSetBit == false
+80 4 isSetBit == false
+80 2 isSetBit == false
+80 1 isSetBit == false
+
+setBit : R8 Int -- R8
+setBit = dip(getR8 dup) dup dip(swap) isSetBit if(drop,+) v8
+
+24 v8 16 setBit == 24 v8
+0 v8 16 setBit == 16 v8
+3 v8 16 setBit == 19 v8
+
+dropBit : R8 Int -- R8
+dropBit = dip(getR8 dup) dup dip(swap) isSetBit if(-,drop) v8
+
+24 v8 16 dropBit == 8 v8
+0 v8 16 dropBit == 0 v8
+16 v8 16 dropBit == 0 v8
 
 data R16
   v16 : Int -- R16
@@ -8990,7 +9044,7 @@ data M6502Flag
   carry : M6502Flag
   interrupt : M6502Flag
   overflow : M6502Flag
-  direction : M6502Flag
+  decimal : M6502Flag
 end
 
 data M6502InstLabel
@@ -9109,10 +9163,76 @@ data M6502Effect
   writeByte : Int R8 -- M6502Effect
 end
 
+data M6502FlagBits
+  flgBits : R8 -- M6502FlagBits
+end
+
+getAnyFlag(v : Int) : M6502FlagBits -- Bool
+getAnyFlag(v) = match(flgBits -> getR8 v isSetBit)
+
+setAnyFlag(v : Int) : M6502FlagBits Bool -- M6502FlagBits
+setAnyFlag(v) = swap match(flgBits -> swap if(v setBit,v dropBit) flgBits)
+
+emptyFlags : M6502FlagBits
+emptyFlags = v8zero flgBits
+
+getNFlag : M6502FlagBits -- Bool
+getNFlag = getAnyFlag(128)
+
+setNFlag : M6502FlagBits Bool -- M6502FlagBits
+setNFlag = setAnyFlag(128)
+
+getVFlag : M6502FlagBits -- Bool
+getVFlag = getAnyFlag(64)
+
+setVFlag : M6502FlagBits Bool -- M6502FlagBits
+setVFlag = setAnyFlag(64)
+
+getBFlag : M6502FlagBits -- Bool
+getBFlag = getAnyFlag(16)
+
+setBFlag : M6502FlagBits Bool -- M6502FlagBits
+setBFlag = setAnyFlag(16)
+
+getDFlag : M6502FlagBits -- Bool
+getDFlag = getAnyFlag(8)
+
+setDFlag : M6502FlagBits Bool -- M6502FlagBits
+setDFlag = setAnyFlag(8)
+
+getIFlag : M6502FlagBits -- Bool
+getIFlag = getAnyFlag(4)
+
+setIFlag : M6502FlagBits Bool -- M6502FlagBits
+setIFlag = setAnyFlag(4)
+
+getZFlag : M6502FlagBits -- Bool
+getZFlag = getAnyFlag(2)
+
+setZFlag : M6502FlagBits Bool -- M6502FlagBits
+setZFlag = setAnyFlag(2)
+
+getCFlag : M6502FlagBits -- Bool
+getCFlag = getAnyFlag(1)
+
+setCFlag : M6502FlagBits Bool -- M6502FlagBits
+setCFlag = setAnyFlag(1)
+
+8 v8 flgBits getDFlag == true
+
+combineOneFlag(getter : M6502FlagBits -- Bool, setter : M6502FlagBits Bool -- M6502FlagBits) : M6502FlagBits M6502FlagBits M6502FlagBits -- M6502FlagBits M6502FlagBits M6502FlagBits
+combineOneFlag(getter,setter) = dup getter if(dip(dup getter swap) dip2(setter),)
+
+combineFlags : M6502FlagBits M6502FlagBits M6502FlagBits -- M6502FlagBits
+combineFlags = combineOneFlag(getNFlag,setNFlag) combineOneFlag(getVFlag,setVFlag) combineOneFlag(getBFlag,setBFlag) combineOneFlag(getDFlag,setDFlag) combineOneFlag(getIFlag,setIFlag) combineOneFlag(getZFlag,setZFlag) combineOneFlag(getCFlag,setCFlag) drop drop
+
 # pc a x y sp flags state
 data M6502
-  m6502 : R16 R8 R8 R8 R8 R8 M6502State -- M6502
+  m6502 : R16 R8 R8 R8 R8 M6502FlagBits M6502State -- M6502
 end
+
+emptyM6502 : -- M6502
+emptyM6502 = v16zero v8zero v8zero v8zero v8zero emptyFlags reset m6502
 
 data M6502InstCategory
   g1 : -- M6502InstCategory
@@ -9386,7 +9506,7 @@ decodeFlgInst = 1 256 0x98 r8Matches if(Txy ds_Y dd_A di,
     1 256 0x58 r8Matches if(interrupt CLx ds_F dd_F di,
     1 256 0x78 r8Matches if(interrupt SEx ds_F dd_F di,
     1 256 0xb8 r8Matches if(overflow CLx ds_F dd_F di,
-    1 256 0xd8 r8Matches if(direction CLx ds_F dd_F di,direction SEx ds_F dd_F di))))))) swap drop
+    1 256 0xd8 r8Matches if(decimal CLx ds_F dd_F di,decimal SEx ds_F dd_F di))))))) swap drop
 
 decodeInstruction : R8 M6502InstCategory -- M6502Instruction
 decodeInstruction = match(g0 -> decodeG0Inst,
@@ -9584,8 +9704,8 @@ decodeInstruction = match(g0 -> decodeG0Inst,
 0x78 v8 categorizeInstruction decodeInstruction == interrupt SEx ds_F dd_F di
 0x98 v8 categorizeInstruction decodeInstruction == Txy ds_Y dd_A di
 0xb8 v8 categorizeInstruction decodeInstruction == overflow CLx ds_F dd_F di
-0xd8 v8 categorizeInstruction decodeInstruction == direction CLx ds_F dd_F di
-0xf8 v8 categorizeInstruction decodeInstruction == direction SEx ds_F dd_F di
+0xd8 v8 categorizeInstruction decodeInstruction == decimal CLx ds_F dd_F di
+0xf8 v8 categorizeInstruction decodeInstruction == decimal SEx ds_F dd_F di
 
 0x8a v8 categorizeInstruction decodeInstruction == Txy ds_X dd_A di
 0x9a v8 categorizeInstruction decodeInstruction == Txy ds_X dd_S di
@@ -9616,8 +9736,11 @@ setY6502 = match(m6502 ->) dip3(dip2(rotl) rotl swap drop) m6502
 setS6502 : R8 M6502 -- M6502 
 setS6502 = swap dip(match(m6502 ->)) rotr dip2(swap drop) m6502
 
+setFB6502 : M6502FlagBits M6502 -- M6502
+setFB6502 = swap dip(match(m6502 ->)) rotr dip(drop) m6502
+
 setF6502 : R8 M6502 -- M6502
-setF6502 = swap dip(match(m6502 ->)) rotr dip(drop) m6502
+setF6502 = dip(flgBits) setFB6502
 
 getPC6502 : M6502 -- R16
 getPC6502 = match(m6502 ->) drop drop drop drop drop drop
@@ -9634,51 +9757,87 @@ getY6502 = match(m6502 ->) drop drop drop dip(drop drop drop)
 getSP6502 : M6502 -- R8
 getSP6502 = match(m6502 ->) drop drop dip(drop drop drop drop)
 
+getFB6502 : M6502 -- M6502FlagBits
+getFB6502 = match(m6502 ->) drop dip(drop drop drop drop drop)
+
 getF6502 : M6502 -- R8
-getF6502 = match(m6502 ->) drop dip(drop drop drop drop drop)
+getF6502 = getFB6502 match(flgBits ->)
 
-getR8 : R8 -- Int
-getR8 = match(v8 -> )
+unpackR8s : R8 R8 Bool -- Int Int Bool
+unpackR8s = dip(getR8 swap getR8)
 
-incR8 : R8 -- R8
-incR8 = getR8 1 + 256 % v8
+getYPlusC : Int Bool -- Int
+getYPlusC = if(1,0) +
 
-decR8 : R8 -- R8
-decR8 = getR8 255 + 256 % v8
+# x + y + c -- Binary addition with flags, R8
+# http://www.righto.com/2012/12/the-6502-overflow-flag-explained.html
+# Result N C V
+addR8Flags : R8 R8 Bool -- R8 Bool Bool Bool
 
-addR8NC : R8 R8 -- R8
-addR8NC = dip(getR8) getR8 + 256 % v8
+getCarryBit(n : Int) : Int Int -- Bool
+getCarryBit(n) = dip(n isSetBit if(1,0)) n isSetBit if(1,0) + 2 >
 
-hexDigits : R8 -- Int Int
-hexDigits = getR8 dup 16 / 16 % dip(16 %)
+getC6 : Int Int -- Bool
+getC6 = getCarryBit(64)
 
-data BCDResult
-  bcd : Int Int Bool Bool Bool -- BCDResult
-end
+getC7 : Int Int -- Bool
+getC7 = getCarryBit(128)
 
-getR8BCD : R8 -- BCDResult
-getR8BCD = hexDigits false false false bcd
+getS7 : R8 -- R8 Bool
+getS7 = dup getR8 128 isSetBit
 
-0xa9 v8 getR8BCD == 9 10 false false false bcd
+# Given C7 and C6 -- C V
+getV : Bool Bool -- Bool Bool
+getV = dup2 xor swap drop
 
-getLowDigit : BCDResult -- Int
-getLowDigit = match(bcd -> drop drop drop drop)
+addTheNumbers : Int Int -- R8
+addTheNumbers = + 256 % v8
 
-0xa9 v8 getR8BCD getLowDigit == 9
+computeAndBurySum : Int Int -- R8 Int Int
+computeAndBurySum = dup2 addTheNumbers rotr
 
-getHighDigit : BCDResult -- Int
-getHighDigit = match(bcd -> drop drop drop swap drop)
+computeAndBuryC6 : Int Int -- Bool Int Int
+computeAndBuryC6 = dup2 getC6 rotr
 
-0xa9 v8 getR8BCD getHighDigit == 10
+addR8Flags = unpackR8s getYPlusC computeAndBurySum computeAndBuryC6 getC7 dip2(getS7) getV
 
-min : Int Int -- Int
-min = >? if(drop, swap drop)
+# N C V
+addR8Dec : R8 R8 Bool -- R8 M6502FlagBits
 
-# min 3 4 == 3
-# min 4 3 == 3
+getLowDecimalDigits : Int Int -- Int Int
+getLowDecimalDigits = dip(16 %) 16 %
 
-addR8 : Int R8 -- R8
-addR8 = match(v8 -> ) + 256 % v8
+generateFirstDigitAndCarry : Int Int -- Int Bool
+generateFirstDigitAndCarry = + 9 >? swap drop dip(10 %)
+
+1 1 generateFirstDigitAndCarry == 2 false
+1 9 generateFirstDigitAndCarry == 0 true
+9 9 generateFirstDigitAndCarry == 8 true
+
+getHighDecimalDigits : Int Int -- Int Int
+getHighDecimalDigits = dip(16 /) 16 /
+
+0x11 0x09 getHighDecimalDigits == 1 0
+
+carryIfGreaterThan9High : Int Int -- Int Int Bool
+carryIfGreaterThan9High = dup2 drop 9 >
+
+# Thanks : http://6502.org/tutorials/decimal_mode.html#3.2.2
+computeOverflowAL : Int Int -- Int Int
+computeOverflowAL = 9 >? if(drop 6 + 16 % 16 +,drop) 
+
+computeOverflow : Int Int -- Bool
+computeOverflow = computeOverflowAL dip(16 *) + 256 >
+
+addR8Dec = unpackR8s getYPlusC dup2 getLowDecimalDigits generateFirstDigitAndCarry swap dip2(getHighDecimalDigits) dip(getYPlusC +) dup2 fromHexDigitsHL rotr carryIfGreaterThan9High dip(computeOverflow) dip2(dup getR8 128 isSetBit) emptyFlags swap setVFlag swap setCFlag swap setNFlag
+
+0 v8 0 v8 false addR8Dec == 0 v8 emptyFlags
+0 v8 0 v8 true addR8Dec == 1 v8 emptyFlags
+0 v8 1 v8 false addR8Dec == 1 v8 emptyFlags
+1 v8 0 v8 false addR8Dec == 1 v8 emptyFlags
+1 v8 1 v8 false addR8Dec == 2 v8 emptyFlags
+1 v8 1 v8 true addR8Dec == 3 v8 emptyFlags
+0x09 v8 0x11 v8 false addR8Dec == 0x20 v8 emptyFlags
 
 addR16 : Int R16 -- R16
 addR16 = match(v16 -> ) + 65536 % v16
@@ -9718,38 +9877,6 @@ pushPCByteLsbIntr = dip(dip(drop)) dup getPC6502 match(v16 ->) 256 % v8 push6502
 
 pushPCByteMsbIntr : R8 M6502InterruptType M6502 -- M6502 M6502Effect
 pushPCByteMsbIntr = dip(dip(drop)) dup getPC6502 match(v16 ->) 256 / v8 push6502 dip(swap intrPushedPCByteMsb nextState6502)
-
-isSetBit : Int Int -- Bool
-isSetBit = / 2 % 1 eq
-
-11 16 isSetBit == false
-11 8 isSetBit == true
-11 4 isSetBit == false
-11 2 isSetBit == true
-11 1 isSetBit == true
-
-80 128 isSetBit == false
-80 64 isSetBit == true
-80 32 isSetBit == false
-80 16 isSetBit == true
-80 8 isSetBit == false
-80 4 isSetBit == false
-80 2 isSetBit == false
-80 1 isSetBit == false
-
-setBit : R8 Int -- R8
-setBit = dip(getR8 dup) dup dip(swap) isSetBit if(drop,+) v8
-
-24 v8 16 setBit == 24 v8
-0 v8 16 setBit == 16 v8
-3 v8 16 setBit == 19 v8
-
-dropBit : R8 Int -- R8
-dropBit = dip(getR8 dup) dup dip(swap) isSetBit if(-,drop) v8
-
-24 v8 16 dropBit == 8 v8
-0 v8 16 dropBit == 0 v8
-16 v8 16 dropBit == 0 v8
 
 setBrkBit : R8 -- R8
 setBrkBit = 16 setBit
@@ -9908,13 +10035,13 @@ setFlag : R8 M6502 M6502DataSource M6502DataDest M6502Flag -- M6502 M6502Effect
 setFlag = match(carry -> setFlagInt(1),
   interrupt -> setFlagInt(4),
   overflow -> setFlagInt(0x40),
-  direction -> setFlagInt(0x08))
+  decimal -> setFlagInt(0x08))
 
 clrFlag : R8 M6502 M6502DataSource M6502DataDest M6502Flag -- M6502 M6502Effect
 clrFlag = match(carry -> clrFlagInt(1),
   interrupt -> clrFlagInt(4),
   overflow -> clrFlagInt(0x40),
-  direction -> clrFlagInt(0x08))
+  decimal -> clrFlagInt(0x08))
 
 genAddConst(addfn : Int R8 -- R8, leaveSetFlags : R8 M6502 -- R8 M6502) : R8 M6502 M6502DataSource M6502DataDest Int -- M6502 M6502Effect
 genAddConst(addfn, leaveSetFlags) = rotr dip2(swap) adjustPCAfterInsn(1) swap drop dip2(swap addfn) dip(leaveSetFlags) writeOutput
@@ -9928,8 +10055,98 @@ brkInst = adjustPCAfterInsn(2) drop drop swap drop brk intrPushedPCByteLsb nextS
 popInst : R8 M6502 M6502DataSource M6502DataDest -- M6502 M6502Effect
 popInst = adjustPCAfterInsn(1) dip(drop swap drop incSP6502) dip(PLf ds_Stack) di fetchOperand nextState6502 dup getSP6502 getR8 0x100 + fetchByte
 
+nvcFlags : M6502FlagBits
+nvcFlags = emptyFlags true setNFlag true setVFlag true setCFlag
+
+adcDec : R8 M6502 M6502DataDest -- M6502 M6502Effect
+
+adcDecPrepare : R8 M6502 M6502DataDest -- R8 R8 M6502 M6502DataDest
+adcDecPrepare = dip(dup getA6502 swap)
+
+addDecGetCarryFlag : M6502 -- Bool M6502
+addDecGetCarryFlag = dup getFB6502 getCFlag swap
+
+adcDecCombineFlags : R8 M6502FlagBits M6502 -- R8 M6502FlagBits M6502
+adcDecCombineFlags = dup getFB6502 swap dip(swap nvcFlags combineFlags)
+
+adcDecRunAddition : R8 R8 Bool M6502 -- R8 M6502FlagBits M6502
+adcDecRunAddition = dip(addR8Dec)
+
+0x11 v8 0x09 v8 false emptyM6502 adcDecRunAddition == 0x20 v8 emptyFlags emptyM6502
+
+adcDecPerform : R8 R8 M6502 M6502DataDest -- R8 M6502 M6502DataDest
+adcDecPerform = dip(addDecGetCarryFlag) dip(adcDecRunAddition) dip(adcDecCombineFlags) dip(setFB6502)
+
+adcDecArrangeForZFlagSet : R8 -- R8 Bool
+adcDecArrangeForZFlagSet = dup getR8 0 eq
+
+adcDecSetZFlagFinish : Bool M6502 -- M6502
+adcDecSetZFlagFinish = dup getFB6502 swap dip(swap setZFlag) setFB6502
+
+adcDecSetZFlag : R8 M6502 -- R8 M6502
+adcDecSetZFlag = dip(adcDecArrangeForZFlagSet) adcDecSetZFlagFinish
+
+adcDec = adcDecPrepare adcDecPerform dip(adcDecSetZFlag) writeOutput
+
+0x10 v8 0x33 v8 emptyM6502 setA6502 emptyFlags true setDFlag swap setFB6502 dd_A adcDec drop getA6502 == 0x43 v8
+
+toSignedR8 : Int -- Int
+toSignedR8 = 127 >? swap drop if(256 -,)
+
+15 toSignedR8 == 15
+128 toSignedR8 == -128
+127 toSignedR8 == 127
+255 toSignedR8 == -1
+
+signedToR8 : Int -- Int
+signedToR8 = 0 <? swap drop if(256 + 256 %,256 %)
+
+11 signedToR8 == 11
+-1 signedToR8 == 255
+127 signedToR8 == 127
+-128 signedToR8 == 128
+-127 signedToR8 == 129
+
+adcBinPrepareForFlags : Int Int M6502 -- Int Int R8 Int M6502
+adcBinPrepareForFlags = dip(dup2 + dup signedToR8 v8 swap)
+
+adcBinExtractFlags : R8 Int M6502 -- R8 Int M6502FlagBits M6502
+adcBinExtractFlags = dup getFB6502 swap
+
+adcBinPrepareValues : R8 M6502 -- Int Int M6502
+adcBinPrepareValues = dup getA6502 swap dip(getR8 toSignedR8) dip2(getR8 toSignedR8)
+
+adcBinExtractSetFlag(setter : M6502FlagBits Bool -- M6502FlagBits, checker : Int Int R8 Int -- Int Int R8 Int Bool) : Int Int R8 Int M6502FlagBits -- Int Int R8 Int M6502FlagBits
+adcBinExtractSetFlag(setter,checker) = dip(checker) swap setter
+
+adcBinCheckCarry : Int Int R8 Int -- Int Int R8 Int Bool
+adcBinCheckCarry = dip2(dup2 signedToR8 dip(signedToR8) + 255 >) rotl
+
+adcBinDropCheckCrap : Int Int R8 Int -- R8
+adcBinDropCheckCrap = drop rotr drop drop
+
+adcBinPrepareValuesAndFlags : R8 M6502 -- Int Int R8 Int M6502
+adcBinPrepareValuesAndFlags = adcBinPrepareValues adcBinPrepareForFlags
+
+adcBinPrepareValuesAndFlagsAndGetFlags : R8 M6502 -- Int Int R8 Int M6502FlagBits M6502
+adcBinPrepareValuesAndFlagsAndGetFlags = adcBinPrepareValuesAndFlags adcBinExtractFlags
+
+adcBinCheckSignedOverflow : Int -- Int Bool
+adcBinCheckSignedOverflow = -128 <? swap drop dip(127 >? swap drop) or
+
+adcBinCheckNegative : Int -- Int Bool
+adcBinCheckNegative = 0 <? swap drop
+
+adcBin : R8 M6502 M6502DataDest -- M6502 M6502Effect
+adcBin = dip(adcBinPrepareValuesAndFlagsAndGetFlags dip(adcBinExtractSetFlag(setNFlag, adcBinCheckNegative) adcBinExtractSetFlag(setVFlag, adcBinCheckSignedOverflow) adcBinExtractSetFlag(setCFlag, adcBinCheckCarry) dip(adcBinDropCheckCrap)) setFB6502) writeOutput
+
+adcInst : R8 M6502 M6502DataSource M6502DataDest -- M6502 M6502Effect
+adcInst = adjustPCAfterInsn(1) swap drop dip(dup getFB6502 getDFlag) swap if(adcDec,adcBin)
+
+0x10 v8 0x33 v8 emptyM6502 setA6502 ds_X dd_A adcInst drop getA6502 == 0x43 v8
+
 doInstructionBody : R8 M6502 M6502DataSource M6502DataDest M6502InstLabel -- M6502 M6502Effect
-doInstructionBody = match(ADC -> nopInst,
+doInstructionBody = match(ADC -> adcInst,
   AND -> nopInst,
   ASL -> nopInst,
   BRK -> brkInst,
@@ -10028,9 +10245,6 @@ haveOperandByte = continueInstruction
 interruptPushPCLsb : R8 M6502 M6502InterruptType -- M6502 M6502Effect
 interruptPushPCLsb = dip(dup getPC6502 match(v16 -> 256 %) v8 rotr dip(drop) dd_Stack writeOutput) swap dip(intrPushedPCByteLsb nextState6502)
 
-emptyM6502 : -- M6502
-emptyM6502 = v16zero v8zero v8zero v8zero v8zero v8zero reset m6502
-
 runOneStepDummy : R8 M6502 -- M6502 M6502Effect
 runOneStepDummy = drop drop emptyM6502 noEff
 
@@ -10059,53 +10273,53 @@ runOneStep = dup stateOf6502 match(reset -> readByteAfterReset,
   fetchZPByteDest -> doWriteAfterZPFetch
   )
 
-0x80 v8 emptyM6502 setF6502 == v16zero v8zero v8zero v8zero v8zero 0x80 v8 reset m6502
+0x80 v8 emptyM6502 setF6502 == v16zero v8zero v8zero v8zero v8zero emptyFlags true setNFlag reset m6502
 
 s1 : M6502 M6502Effect
 s1 = v8zero emptyM6502 runOneStep
-s1 == v16zero v8zero v8zero v8zero v8zero v8zero resetReceiveFirstByte m6502 0xfffc fetchByte
+s1 == v16zero v8zero v8zero v8zero v8zero emptyFlags resetReceiveFirstByte m6502 0xfffc fetchByte
 s2 : M6502 M6502Effect
 s2 = 0xab v8 s1 drop runOneStep
-s2 == v16zero v8zero v8zero v8zero v8zero v8zero 0xab v8 resetReceiveSecondByte m6502 0xfffd fetchByte
+s2 == v16zero v8zero v8zero v8zero v8zero emptyFlags 0xab v8 resetReceiveSecondByte m6502 0xfffd fetchByte
 s3 : M6502 M6502Effect
 s3 = 0xcd v8 s2 drop runOneStep
-s3 == 0xcdab v16 v8zero v8zero v8zero v8zero v8zero fetch m6502 0xcdab fetchByte
+s3 == 0xcdab v16 v8zero v8zero v8zero v8zero emptyFlags fetch m6502 0xcdab fetchByte
 s4 : M6502 M6502Effect
 s4 = 0xcb v8 s3 drop runOneStep
-s4 == 0xcdac v16 v8zero v8zero v8zero v8zero v8zero fetch m6502 0xcdac fetchByte
+s4 == 0xcdac v16 v8zero v8zero v8zero v8zero emptyFlags fetch m6502 0xcdac fetchByte
 
 cpuAEq33 : M6502
 cpuAEq33 = 0x33 v8 s3 drop setA6502
 cpuTAX1 : M6502 M6502Effect
 cpuTAX1 = 0xaa v8 cpuAEq33 runOneStep
-cpuTAX1 == 0xcdac v16 0x33 v8 0x33 v8 v8zero v8zero v8zero fetch m6502 0xcdac fetchByte
+cpuTAX1 == 0xcdac v16 0x33 v8 0x33 v8 v8zero v8zero emptyFlags fetch m6502 0xcdac fetchByte
 
 cpuAEq8f : M6502
 cpuAEq8f = 0x8f v8 s3 drop setA6502
 cpuTAXN : M6502 M6502Effect
 cpuTAXN = 0xaa v8 cpuAEq8f runOneStep
-cpuTAXN == 0xcdac v16 0x8f v8 0x8f v8 v8zero v8zero 0x80 v8 fetch m6502 0xcdac fetchByte
+cpuTAXN == 0xcdac v16 0x8f v8 0x8f v8 v8zero v8zero emptyFlags true setNFlag fetch m6502 0xcdac fetchByte
 
 ldaINST : M6502Instruction
 ldaINST = LDx ds_Imm8 dd_A di
 cpuLDA1 : M6502 M6502Effect
 cpuLDA1 = 0xa9 v8 cpuAEq33 runOneStep
-cpuLDA1 == 0xcdab v16 0x33 v8 v8zero v8zero v8zero v8zero ldaINST fetchOperand m6502 0xcdac fetchByte
+cpuLDA1 == 0xcdab v16 0x33 v8 v8zero v8zero v8zero emptyFlags ldaINST fetchOperand m6502 0xcdac fetchByte
 cpuLDA2 : M6502 M6502Effect
 cpuLDA2 = 0x55 v8 cpuLDA1 drop runOneStep
-cpuLDA2 == 0xcdad v16 0x55 v8 v8zero v8zero v8zero v8zero fetch m6502 0xcdad fetchByte
+cpuLDA2 == 0xcdad v16 0x55 v8 v8zero v8zero v8zero emptyFlags fetch m6502 0xcdad fetchByte
 
 ldyZpINST : M6502Instruction
 ldyZpINST = LDx ds_zp dd_Y di
 cpuLDYZp1 : M6502 M6502Effect
 cpuLDYZp1 = 0xa4 v8 cpuAEq33 runOneStep
-cpuLDYZp1 == 0xcdab v16 0x33 v8 v8zero v8zero v8zero v8zero ldyZpINST justZP fetchZPByte m6502 0xcdac fetchByte
+cpuLDYZp1 == 0xcdab v16 0x33 v8 v8zero v8zero v8zero emptyFlags ldyZpINST justZP fetchZPByte m6502 0xcdac fetchByte
 cpuLDYZp2 : M6502 M6502Effect
 cpuLDYZp2 = 0x11 v8 cpuLDYZp1 drop runOneStep
-cpuLDYZp2 == 0xcdab v16 0x33 v8 v8zero v8zero v8zero v8zero ldyZpINST fetchOperand m6502 0x11 fetchByte
+cpuLDYZp2 == 0xcdab v16 0x33 v8 v8zero v8zero v8zero emptyFlags ldyZpINST fetchOperand m6502 0x11 fetchByte
 cpuLDYZp3 : M6502 M6502Effect
 cpuLDYZp3 = 0x22 v8 cpuLDYZp2 drop runOneStep
-cpuLDYZp3 == 0xcdad v16 0x33 v8 v8zero 0x22 v8 v8zero v8zero fetch m6502 0xcdad fetchByte
+cpuLDYZp3 == 0xcdad v16 0x33 v8 v8zero 0x22 v8 v8zero emptyFlags fetch m6502 0xcdad fetchByte
 
 cpuXYEqaa33 : M6502
 cpuXYEqaa33 = 0x33 v8 s3 drop setY6502 0xaa v8 swap setX6502
@@ -10114,26 +10328,26 @@ stxZpYINST : M6502Instruction
 stxZpYINST = STx ds_Y dd_zpX di
 cpuSTYZp1 : M6502 M6502Effect
 cpuSTYZp1 = 0x94 v8 cpuXYEqaa33 runOneStep
-cpuSTYZp1 == 0xcdad v16 v8zero 0xaa v8 0x33 v8 v8zero v8zero 0xaa 0x33 v8 zpPlusX fetchZPByteDest m6502 0xcdac fetchByte
+cpuSTYZp1 == 0xcdad v16 v8zero 0xaa v8 0x33 v8 v8zero emptyFlags 0xaa 0x33 v8 zpPlusX fetchZPByteDest m6502 0xcdac fetchByte
 cpuSTYZp2 : M6502 M6502Effect
 cpuSTYZp2 = 0x11 v8 cpuSTYZp1 drop runOneStep
-cpuSTYZp2 == 0xcdad v16 v8zero 0xaa v8 0x33 v8 v8zero v8zero prefetch m6502 0xbb 0x33 v8 writeByte
+cpuSTYZp2 == 0xcdad v16 v8zero 0xaa v8 0x33 v8 v8zero emptyFlags prefetch m6502 0xbb 0x33 v8 writeByte
 cpuSTYZp3 : M6502 M6502Effect
 cpuSTYZp3 = v8zero cpuSTYZp2 drop runOneStep
-cpuSTYZp3 == 0xcdad v16 v8zero 0xaa v8 0x33 v8 v8zero v8zero fetch m6502 0xcdad fetchByte
+cpuSTYZp3 == 0xcdad v16 v8zero 0xaa v8 0x33 v8 v8zero emptyFlags fetch m6502 0xcdad fetchByte
 
 cpuXYEqaa00 : M6502
 cpuXYEqaa00 = v8zero s3 drop setY6502 0xaa v8 swap setX6502
 
 cpuSTY0Zp1 : M6502 M6502Effect
 cpuSTY0Zp1 = 0x94 v8 cpuXYEqaa00 runOneStep
-cpuSTY0Zp1 == 0xcdad v16 v8zero 0xaa v8 0x00 v8 v8zero v8zero 0xaa 0x00 v8 zpPlusX fetchZPByteDest m6502 0xcdac fetchByte
+cpuSTY0Zp1 == 0xcdad v16 v8zero 0xaa v8 0x00 v8 v8zero emptyFlags 0xaa 0x00 v8 zpPlusX fetchZPByteDest m6502 0xcdac fetchByte
 cpuSTY0Zp2 : M6502 M6502Effect
 cpuSTY0Zp2 = 0x11 v8 cpuSTY0Zp1 drop runOneStep
-cpuSTY0Zp2 == 0xcdad v16 v8zero 0xaa v8 0x00 v8 v8zero v8zero prefetch m6502 0xbb 0x00 v8 writeByte
+cpuSTY0Zp2 == 0xcdad v16 v8zero 0xaa v8 0x00 v8 v8zero emptyFlags prefetch m6502 0xbb 0x00 v8 writeByte
 cpuSTY0Zp3 : M6502 M6502Effect
 cpuSTY0Zp3 = v8zero cpuSTY0Zp2 drop runOneStep
-cpuSTY0Zp3 == 0xcdad v16 v8zero 0xaa v8 0x00 v8 v8zero v8zero fetch m6502 0xcdad fetchByte
+cpuSTY0Zp3 == 0xcdad v16 v8zero 0xaa v8 0x00 v8 v8zero emptyFlags fetch m6502 0xcdad fetchByte
 
 cpuStackAddr : M6502
 cpuStackAddr = 2 v8 cpuAEq33 setF6502 0xff v8 swap setS6502
@@ -10143,43 +10357,55 @@ phaINST = PHf ds_A dd_Stack di
 cpuPHA1 : M6502 M6502Effect
 cpuPHA1 = 0x48 v8 cpuStackAddr runOneStep
 cpuPHA2 : M6502 M6502Effect
-cpuPHA2 = 0xcdad v16 0x33 v8 v8zero v8zero 0xfe v8 2 v8 prefetch m6502 0x1ff 0x33 v8 writeByte
+cpuPHA2 = 0xcdad v16 0x33 v8 v8zero v8zero 0xfe v8 emptyFlags true setZFlag prefetch m6502 0x1ff 0x33 v8 writeByte
 
 phfINST : M6502Instruction
 phfINST = PHf ds_F dd_Stack di
 cpuPHF1 : M6502 M6502Effect
 cpuPHF1 = 0x08 v8 cpuStackAddr runOneStep
-cpuPHF1 == 0xcdad v16 0x33 v8 v8zero v8zero 0xfe v8 2 v8 prefetch m6502 0x1ff 2 v8 writeByte
+cpuPHF1 == 0xcdad v16 0x33 v8 v8zero v8zero 0xfe v8 emptyFlags true setZFlag prefetch m6502 0x1ff 2 v8 writeByte
 
 seiINST : M6502Instruction
 seiINST = interrupt SEx ds_DUMMY dd_DUMMY di
 cpuSEI1 : M6502 M6502Effect
 cpuSEI1 = 0x78 v8 cpuAEq33 runOneStep
-cpuSEI1 == 0xcdac v16 0x33 v8 v8zero v8zero v8zero 4 v8 fetch m6502 0xcdac fetchByte
+cpuSEI1 == 0xcdac v16 0x33 v8 v8zero v8zero v8zero emptyFlags true setIFlag fetch m6502 0xcdac fetchByte
 
 cldINST : M6502Instruction
-cldINST = direction CLx ds_DUMMY dd_DUMMY di
+cldINST = decimal CLx ds_DUMMY dd_DUMMY di
 cpuCLD1 : M6502 M6502Effect
 cpuCLD1 = 0xd8 v8 cpuAEq33 runOneStep
-cpuCLD1 == 0xcdac v16 0x33 v8 v8zero v8zero v8zero v8zero fetch m6502 0xcdac fetchByte
+cpuCLD1 == 0xcdac v16 0x33 v8 v8zero v8zero v8zero emptyFlags fetch m6502 0xcdac fetchByte
 
 inyINST : M6502Instruction
 inyINST = INx ds_Y dd_Y di
 cpuINY1 : M6502 M6502Effect
 cpuINY1 = 0xc8 v8 cpuAEq33 runOneStep
-cpuINY1 == 0xcdac v16 0x33 v8 v8zero 1 v8 v8zero v8zero fetch m6502 0xcdac fetchByte
+cpuINY1 == 0xcdac v16 0x33 v8 v8zero 1 v8 v8zero emptyFlags fetch m6502 0xcdac fetchByte
 
 brkINST : M6502Instruction
 brkINST = BRK ds_DUMMY dd_DUMMY di
 cpuBRK1 : M6502 M6502Effect
 cpuBRK1 = 0 v8 cpuAEq33 runOneStep
-cpuBRK1 == 0xcdad v16 0x33 v8 v8zero v8zero 0xff v8 v8zero brk intrPushedPCByteLsb m6502 0x100 0xad v8 writeByte
+cpuBRK1 == 0xcdad v16 0x33 v8 v8zero v8zero 0xff v8 emptyFlags brk intrPushedPCByteLsb m6502 0x100 0xad v8 writeByte
 
 plaINST : M6502Instruction
 plaINST = PLf ds_Stack dd_A di
 cpuPLA1 : M6502 M6502Effect
 cpuPLA1 = 0x68 v8 cpuAEq33 runOneStep
-cpuPLA1 == 0xcdac v16 0x33 v8 v8zero v8zero 1 v8 v8zero plaINST fetchOperand m6502 0x101 fetchByte
+cpuPLA1 == 0xcdac v16 0x33 v8 v8zero v8zero 1 v8 emptyFlags plaINST fetchOperand m6502 0x101 fetchByte
+
+cpuDecFlag : M6502
+cpuDecFlag = emptyFlags true setDFlag cpuAEq33 setFB6502
+
+adcINST : M6502Instruction
+adcINST = ADC ds_Imm8 dd_A di
+cpuADC1 : M6502 M6502Effect
+cpuADC1 = 0x69 v8 cpuDecFlag runOneStep
+cpuADC1 == 0xcdab v16 0x33 v8 v8zero v8zero v8zero emptyFlags true setDFlag adcINST fetchOperand m6502 0xcdac fetchByte
+cpuADC2 : M6502 M6502Effect
+cpuADC2 = 0x29 v8 cpuADC1 drop runOneStep
+cpuADC2 == 0xcdad v16 0x62 v8 v8zero v8zero v8zero emptyFlags true setDFlag fetch m6502 0xcdad fetchByte
 
 data TestComputer
   testComputer : M6502 Ram -- TestComputer
