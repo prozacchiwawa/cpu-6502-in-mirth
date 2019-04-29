@@ -9174,6 +9174,9 @@ data M6502State
 
   jsrPushLsb : Int -- M6502State
 
+  rtsPopLsb : M6502State
+  rtsPopMsb : R8 -- M6502State
+
   prefetch : M6502State
 
 #  intrSet : M6502State -- M6502State
@@ -9256,7 +9259,7 @@ data M6502
 end
 
 emptyM6502 : -- M6502
-emptyM6502 = v16zero v8zero v8zero v8zero v8zero emptyFlags reset m6502
+emptyM6502 = v16zero v8zero v8zero v8zero 0xff v8 emptyFlags reset m6502
 
 data M6502InstCategory
   g1 : -- M6502InstCategory
@@ -10224,6 +10227,12 @@ doBitwiseOp(op) = bitwiseExtractArgs dip(bitwiseBinOp(op) dup extractBPFlags) se
 bitwiseInst(op : Bool Bool -- Bool) : R8 M6502 M6502DataSource M6502DataDest -- M6502 M6502Effect
 bitwiseInst(op) = adjustPCAfterInsn(1) dip2(doBitwiseOp(op)) swap drop dip2(swap drop getBPResult v8) writeOutput
 
+rtsReduceIncSP : R8 M6502 M6502DataSource M6502DataDest -- M6502
+rtsReduceIncSP = drop drop swap drop incSP6502
+
+doRTS : R8 M6502 M6502DataSource M6502DataDest -- M6502 M6502Effect
+doRTS = rtsReduceIncSP rtsPopLsb nextState6502 dup getSP6502 getR8 0x100 + fetchByte
+
 doInstructionBody : R8 M6502 M6502DataSource M6502DataDest M6502InstLabel -- M6502 M6502Effect
 doInstructionBody = match(ADC -> adcInst,
   AND -> bitwiseInst(and),
@@ -10249,7 +10258,7 @@ doInstructionBody = match(ADC -> adcInst,
   ROL -> nopInst,
   ROR -> nopInst,
   RTI -> nopInst,
-  RTS -> nopInst,
+  RTS -> doRTS,
   SBC -> nopInst,
   SEx -> setFlag,
   STx -> store,
@@ -10353,11 +10362,11 @@ executeJMP = swap drop v16 swap setPC6502 fetchPCEffect
 executeJSRNewState : M6502 Int -- M6502
 executeJSRNewState = jsrPushLsb nextState6502
 
-doJSRPushLsb : M6502 -- M6502 M6502Effect
-doJSRPushLsb = dup getPC6502 getR16 3 + 256 % v8 swap dd_Stack writeOutput
+doJSRPushMsb : M6502 -- M6502 M6502Effect
+doJSRPushMsb = dup getPC6502 getR16 3 + 256 / 256 % v8 swap dd_Stack writeOutput
 
 executeJSR : M6502 M6502Instruction Int -- M6502 M6502Effect
-executeJSR = swap drop dip(doJSRPushLsb) swap dip(executeJSRNewState)
+executeJSR = swap drop dip(doJSRPushMsb) swap dip(executeJSRNewState)
 
 doContinueAbsPrepareIns : M6502 M6502Instruction Int -- M6502 M6502Instruction Int M6502InstLabel
 doContinueAbsPrepareIns = dip(dup getInsnLabel) swap
@@ -10395,11 +10404,17 @@ continueAbsWithAddress =
 continueAbs : R8 M6502 M6502Instruction AbsRequestType R8 -- M6502 M6502Effect
 continueAbs = dip2(rotl) rotl numLsbMsb continueAbsWithAddress
 
-jsrPushMsb : M6502 -- M6502 M6502Effect
-jsrPushMsb = dup getPC6502 getR16 256 / 256 % v8 swap dd_Stack writeOutput
+doJsrPushLsb : M6502 -- M6502 M6502Effect
+doJsrPushLsb = dup getPC6502 getR16 256 % v8 swap dd_Stack writeOutput
 
 continueJSR : R8 M6502 Int -- M6502 M6502Effect
-continueJSR = dip2(drop) dip(jsrPushMsb) swap dip(v16 swap setPC6502)
+continueJSR = dip2(drop) dip(doJsrPushLsb) swap dip(v16 swap setPC6502)
+
+continueRTS : R8 M6502 -- M6502 M6502Effect
+continueRTS = incSP6502 swap rtsPopMsb nextState6502 dup getSP6502 getR8 0x100 + fetchByte
+
+finishRTS : R8 M6502 R8 -- M6502 M6502Effect
+finishRTS = rotl swap numLsbMsb 1 + v16 swap setPC6502 fetch nextState6502 fetchPCEffect
 
 runOneStepDummy : R8 M6502 -- M6502 M6502Effect
 runOneStepDummy = drop drop emptyM6502 noEff
@@ -10434,56 +10449,59 @@ runOneStep = dup stateOf6502 match(reset -> readByteAfterReset,
   fetchAbsLsb2 -> doFetchAbsIndMsb,
   fetchAbsMsb2 -> swap drop absRequest swap continueAbs,
 
-  jsrPushLsb -> continueJSR
+  jsrPushLsb -> continueJSR,
+
+  rtsPopLsb -> continueRTS,
+  rtsPopMsb -> finishRTS
   )
 
-0x80 v8 emptyM6502 setF6502 == v16zero v8zero v8zero v8zero v8zero emptyFlags true setNFlag reset m6502
+0x80 v8 emptyM6502 setF6502 == v16zero v8zero v8zero v8zero 0xff v8 emptyFlags true setNFlag reset m6502
 
 s1 : M6502 M6502Effect
 s1 = v8zero emptyM6502 runOneStep
-s1 == v16zero v8zero v8zero v8zero v8zero emptyFlags resetReceiveFirstByte m6502 0xfffc fetchByte
+s1 == v16zero v8zero v8zero v8zero 0xff v8 emptyFlags resetReceiveFirstByte m6502 0xfffc fetchByte
 s2 : M6502 M6502Effect
 s2 = 0xab v8 s1 drop runOneStep
-s2 == v16zero v8zero v8zero v8zero v8zero emptyFlags 0xab v8 resetReceiveSecondByte m6502 0xfffd fetchByte
+s2 == v16zero v8zero v8zero v8zero 0xff v8 emptyFlags 0xab v8 resetReceiveSecondByte m6502 0xfffd fetchByte
 s3 : M6502 M6502Effect
 s3 = 0xcd v8 s2 drop runOneStep
-s3 == 0xcdab v16 v8zero v8zero v8zero v8zero emptyFlags fetch m6502 0xcdab fetchByte
+s3 == 0xcdab v16 v8zero v8zero v8zero 0xff v8 emptyFlags fetch m6502 0xcdab fetchByte
 s4 : M6502 M6502Effect
 s4 = 0xcb v8 s3 drop runOneStep
-s4 == 0xcdac v16 v8zero v8zero v8zero v8zero emptyFlags fetch m6502 0xcdac fetchByte
+s4 == 0xcdac v16 v8zero v8zero v8zero 0xff v8 emptyFlags fetch m6502 0xcdac fetchByte
 
 cpuAEq33 : M6502
 cpuAEq33 = 0x33 v8 s3 drop setA6502
 cpuTAX1 : M6502 M6502Effect
 cpuTAX1 = 0xaa v8 cpuAEq33 runOneStep
-cpuTAX1 == 0xcdac v16 0x33 v8 0x33 v8 v8zero v8zero emptyFlags fetch m6502 0xcdac fetchByte
+cpuTAX1 == 0xcdac v16 0x33 v8 0x33 v8 v8zero 0xff v8 emptyFlags fetch m6502 0xcdac fetchByte
 
 cpuAEq8f : M6502
 cpuAEq8f = 0x8f v8 s3 drop setA6502
 cpuTAXN : M6502 M6502Effect
 cpuTAXN = 0xaa v8 cpuAEq8f runOneStep
-cpuTAXN == 0xcdac v16 0x8f v8 0x8f v8 v8zero v8zero emptyFlags true setNFlag fetch m6502 0xcdac fetchByte
+cpuTAXN == 0xcdac v16 0x8f v8 0x8f v8 v8zero 0xff v8 emptyFlags true setNFlag fetch m6502 0xcdac fetchByte
 
 ldaINST : M6502Instruction
 ldaINST = LDx ds_Imm8 dd_A di
 cpuLDA1 : M6502 M6502Effect
 cpuLDA1 = 0xa9 v8 cpuAEq33 runOneStep
-cpuLDA1 == 0xcdab v16 0x33 v8 v8zero v8zero v8zero emptyFlags ldaINST fetchOperand m6502 0xcdac fetchByte
+cpuLDA1 == 0xcdab v16 0x33 v8 v8zero v8zero 0xff v8 emptyFlags ldaINST fetchOperand m6502 0xcdac fetchByte
 cpuLDA2 : M6502 M6502Effect
 cpuLDA2 = 0x55 v8 cpuLDA1 drop runOneStep
-cpuLDA2 == 0xcdad v16 0x55 v8 v8zero v8zero v8zero emptyFlags fetch m6502 0xcdad fetchByte
+cpuLDA2 == 0xcdad v16 0x55 v8 v8zero v8zero 0xff v8 emptyFlags fetch m6502 0xcdad fetchByte
 
 ldyZpINST : M6502Instruction
 ldyZpINST = LDx ds_zp dd_Y di
 cpuLDYZp1 : M6502 M6502Effect
 cpuLDYZp1 = 0xa4 v8 cpuAEq33 runOneStep
-cpuLDYZp1 == 0xcdab v16 0x33 v8 v8zero v8zero v8zero emptyFlags ldyZpINST justZP fetchZPByte m6502 0xcdac fetchByte
+cpuLDYZp1 == 0xcdab v16 0x33 v8 v8zero v8zero 0xff v8 emptyFlags ldyZpINST justZP fetchZPByte m6502 0xcdac fetchByte
 cpuLDYZp2 : M6502 M6502Effect
 cpuLDYZp2 = 0x11 v8 cpuLDYZp1 drop runOneStep
-cpuLDYZp2 == 0xcdab v16 0x33 v8 v8zero v8zero v8zero emptyFlags ldyZpINST fetchOperand m6502 0x11 fetchByte
+cpuLDYZp2 == 0xcdab v16 0x33 v8 v8zero v8zero 0xff v8 emptyFlags ldyZpINST fetchOperand m6502 0x11 fetchByte
 cpuLDYZp3 : M6502 M6502Effect
 cpuLDYZp3 = 0x22 v8 cpuLDYZp2 drop runOneStep
-cpuLDYZp3 == 0xcdad v16 0x33 v8 v8zero 0x22 v8 v8zero emptyFlags fetch m6502 0xcdad fetchByte
+cpuLDYZp3 == 0xcdad v16 0x33 v8 v8zero 0x22 v8 0xff v8 emptyFlags fetch m6502 0xcdad fetchByte
 
 cpuXYEqaa33 : M6502
 cpuXYEqaa33 = 0x33 v8 s3 drop setY6502 0xaa v8 swap setX6502
@@ -10492,26 +10510,26 @@ stxZpYINST : M6502Instruction
 stxZpYINST = STx ds_Y dd_zpX di
 cpuSTYZp1 : M6502 M6502Effect
 cpuSTYZp1 = 0x94 v8 cpuXYEqaa33 runOneStep
-cpuSTYZp1 == 0xcdad v16 v8zero 0xaa v8 0x33 v8 v8zero emptyFlags 0xaa 0x33 v8 zpPlusX fetchZPByteDest m6502 0xcdac fetchByte
+cpuSTYZp1 == 0xcdad v16 v8zero 0xaa v8 0x33 v8 0xff v8 emptyFlags 0xaa 0x33 v8 zpPlusX fetchZPByteDest m6502 0xcdac fetchByte
 cpuSTYZp2 : M6502 M6502Effect
 cpuSTYZp2 = 0x11 v8 cpuSTYZp1 drop runOneStep
-cpuSTYZp2 == 0xcdad v16 v8zero 0xaa v8 0x33 v8 v8zero emptyFlags prefetch m6502 0xbb 0x33 v8 writeByte
+cpuSTYZp2 == 0xcdad v16 v8zero 0xaa v8 0x33 v8 0xff v8 emptyFlags prefetch m6502 0xbb 0x33 v8 writeByte
 cpuSTYZp3 : M6502 M6502Effect
 cpuSTYZp3 = v8zero cpuSTYZp2 drop runOneStep
-cpuSTYZp3 == 0xcdad v16 v8zero 0xaa v8 0x33 v8 v8zero emptyFlags fetch m6502 0xcdad fetchByte
+cpuSTYZp3 == 0xcdad v16 v8zero 0xaa v8 0x33 v8 0xff v8 emptyFlags fetch m6502 0xcdad fetchByte
 
 cpuXYEqaa00 : M6502
 cpuXYEqaa00 = v8zero s3 drop setY6502 0xaa v8 swap setX6502
 
 cpuSTY0Zp1 : M6502 M6502Effect
 cpuSTY0Zp1 = 0x94 v8 cpuXYEqaa00 runOneStep
-cpuSTY0Zp1 == 0xcdad v16 v8zero 0xaa v8 0x00 v8 v8zero emptyFlags 0xaa 0x00 v8 zpPlusX fetchZPByteDest m6502 0xcdac fetchByte
+cpuSTY0Zp1 == 0xcdad v16 v8zero 0xaa v8 0x00 v8 0xff v8 emptyFlags 0xaa 0x00 v8 zpPlusX fetchZPByteDest m6502 0xcdac fetchByte
 cpuSTY0Zp2 : M6502 M6502Effect
 cpuSTY0Zp2 = 0x11 v8 cpuSTY0Zp1 drop runOneStep
-cpuSTY0Zp2 == 0xcdad v16 v8zero 0xaa v8 0x00 v8 v8zero emptyFlags prefetch m6502 0xbb 0x00 v8 writeByte
+cpuSTY0Zp2 == 0xcdad v16 v8zero 0xaa v8 0x00 v8 0xff v8 emptyFlags prefetch m6502 0xbb 0x00 v8 writeByte
 cpuSTY0Zp3 : M6502 M6502Effect
 cpuSTY0Zp3 = v8zero cpuSTY0Zp2 drop runOneStep
-cpuSTY0Zp3 == 0xcdad v16 v8zero 0xaa v8 0x00 v8 v8zero emptyFlags fetch m6502 0xcdad fetchByte
+cpuSTY0Zp3 == 0xcdad v16 v8zero 0xaa v8 0x00 v8 0xff v8 emptyFlags fetch m6502 0xcdad fetchByte
 
 cpuStackAddr : M6502
 cpuStackAddr = 2 v8 cpuAEq33 setF6502 0xff v8 swap setS6502
@@ -10533,31 +10551,31 @@ seiINST : M6502Instruction
 seiINST = interrupt SEx ds_DUMMY dd_DUMMY di
 cpuSEI1 : M6502 M6502Effect
 cpuSEI1 = 0x78 v8 cpuAEq33 runOneStep
-cpuSEI1 == 0xcdac v16 0x33 v8 v8zero v8zero v8zero emptyFlags true setIFlag fetch m6502 0xcdac fetchByte
+cpuSEI1 == 0xcdac v16 0x33 v8 v8zero v8zero 0xff v8 emptyFlags true setIFlag fetch m6502 0xcdac fetchByte
 
 cldINST : M6502Instruction
 cldINST = decimal CLx ds_DUMMY dd_DUMMY di
 cpuCLD1 : M6502 M6502Effect
 cpuCLD1 = 0xd8 v8 cpuAEq33 runOneStep
-cpuCLD1 == 0xcdac v16 0x33 v8 v8zero v8zero v8zero emptyFlags fetch m6502 0xcdac fetchByte
+cpuCLD1 == 0xcdac v16 0x33 v8 v8zero v8zero 0xff v8 emptyFlags fetch m6502 0xcdac fetchByte
 
 inyINST : M6502Instruction
 inyINST = INx ds_Y dd_Y di
 cpuINY1 : M6502 M6502Effect
 cpuINY1 = 0xc8 v8 cpuAEq33 runOneStep
-cpuINY1 == 0xcdac v16 0x33 v8 v8zero 1 v8 v8zero emptyFlags fetch m6502 0xcdac fetchByte
+cpuINY1 == 0xcdac v16 0x33 v8 v8zero 1 v8 0xff v8 emptyFlags fetch m6502 0xcdac fetchByte
 
 brkINST : M6502Instruction
 brkINST = BRK ds_DUMMY dd_DUMMY di
 cpuBRK1 : M6502 M6502Effect
 cpuBRK1 = 0 v8 cpuAEq33 runOneStep
-cpuBRK1 == 0xcdad v16 0x33 v8 v8zero v8zero 0xff v8 emptyFlags brk intrPushedPCByteLsb m6502 0x100 0xad v8 writeByte
+cpuBRK1 == 0xcdad v16 0x33 v8 v8zero v8zero 0xfe v8 emptyFlags brk intrPushedPCByteLsb m6502 0x1ff 0xad v8 writeByte
 
 plaINST : M6502Instruction
 plaINST = PLf ds_Stack dd_A di
 cpuPLA1 : M6502 M6502Effect
 cpuPLA1 = 0x68 v8 cpuAEq33 runOneStep
-cpuPLA1 == 0xcdac v16 0x33 v8 v8zero v8zero 1 v8 emptyFlags plaINST fetchOperand m6502 0x101 fetchByte
+cpuPLA1 == 0xcdac v16 0x33 v8 v8zero v8zero 0 v8 emptyFlags plaINST fetchOperand m6502 0x100 fetchByte
 
 cpuDecFlag : M6502
 cpuDecFlag = emptyFlags true setDFlag cpuAEq33 setFB6502
@@ -10566,73 +10584,143 @@ adcINST : M6502Instruction
 adcINST = ADC ds_Imm8 dd_A di
 cpuADC1 : M6502 M6502Effect
 cpuADC1 = 0x69 v8 cpuDecFlag runOneStep
-cpuADC1 == 0xcdab v16 0x33 v8 v8zero v8zero v8zero emptyFlags true setDFlag adcINST fetchOperand m6502 0xcdac fetchByte
+cpuADC1 == 0xcdab v16 0x33 v8 v8zero v8zero 0xff v8 emptyFlags true setDFlag adcINST fetchOperand m6502 0xcdac fetchByte
 cpuADC2 : M6502 M6502Effect
 cpuADC2 = 0x29 v8 cpuADC1 drop runOneStep
-cpuADC2 == 0xcdad v16 0x62 v8 v8zero v8zero v8zero emptyFlags true setDFlag fetch m6502 0xcdad fetchByte
+cpuADC2 == 0xcdad v16 0x62 v8 v8zero v8zero 0xff v8 emptyFlags true setDFlag fetch m6502 0xcdad fetchByte
 
 xorINST : M6502Instruction
 xorINST = EOR ds_Imm8 dd_A di
 cpuXOR1 : M6502 M6502Effect
 cpuXOR1 = 0x49 v8 cpuAEq33 runOneStep
-cpuXOR1 == 0xcdab v16 0x33 v8 v8zero v8zero v8zero emptyFlags xorINST fetchOperand m6502 0xcdac fetchByte
+cpuXOR1 == 0xcdab v16 0x33 v8 v8zero v8zero 0xff v8 emptyFlags xorINST fetchOperand m6502 0xcdac fetchByte
 
 cpuXOR2 : M6502 M6502Effect
 cpuXOR2 = 0x51 v8 cpuXOR1 drop runOneStep
-cpuXOR2 == 0xcdad v16 0x62 v8 v8zero v8zero v8zero emptyFlags fetch m6502 0xcdad fetchByte
+cpuXOR2 == 0xcdad v16 0x62 v8 v8zero v8zero 0xff v8 emptyFlags fetch m6502 0xcdad fetchByte
 
 cpuXOR3 : M6502 M6502Effect
 cpuXOR3 = 0x33 v8 cpuXOR1 drop runOneStep
-cpuXOR3 == 0xcdad v16 v8zero v8zero v8zero v8zero emptyFlags true setZFlag fetch m6502 0xcdad fetchByte
+cpuXOR3 == 0xcdad v16 v8zero v8zero v8zero 0xff v8 emptyFlags true setZFlag fetch m6502 0xcdad fetchByte
 
 cpuXOR4 : M6502 M6502Effect
 cpuXOR4 = 0xc0 v8 cpuXOR1 drop runOneStep
-cpuXOR4 == 0xcdad v16 0xf3 v8 v8zero v8zero v8zero emptyFlags true setNFlag fetch m6502 0xcdad fetchByte
+cpuXOR4 == 0xcdad v16 0xf3 v8 v8zero v8zero 0xff v8 emptyFlags true setNFlag fetch m6502 0xcdad fetchByte
 
 jmpINST : M6502Instruction
 jmpINST = JMP ds_Abs dd_DUMMY di
 cpuJMP1 : M6502 M6502Effect
 cpuJMP1 = 0x4c v8 cpuAEq33 runOneStep
-cpuJMP1 == 0xcdab v16 0x33 v8 v8zero v8zero v8zero emptyFlags jmpINST absRequest fetchAbsLsb m6502 0xcdac fetchByte
+cpuJMP1 == 0xcdab v16 0x33 v8 v8zero v8zero 0xff v8 emptyFlags jmpINST absRequest fetchAbsLsb m6502 0xcdac fetchByte
 cpuJMP2 : M6502 M6502Effect
 cpuJMP2 = 0x34 v8 cpuJMP1 drop runOneStep
-cpuJMP2 == 0xcdab v16 0x33 v8 v8zero v8zero v8zero emptyFlags jmpINST absRequest 0x34 v8 fetchAbsMsb m6502 0xcdad fetchByte
+cpuJMP2 == 0xcdab v16 0x33 v8 v8zero v8zero 0xff v8 emptyFlags jmpINST absRequest 0x34 v8 fetchAbsMsb m6502 0xcdad fetchByte
 cpuJMP3 : M6502 M6502Effect
 cpuJMP3 = 0x12 v8 cpuJMP2 drop runOneStep
-cpuJMP3 == 0x1234 v16 0x33 v8 v8zero v8zero v8zero emptyFlags fetch m6502 0x1234 fetchByte
+cpuJMP3 == 0x1234 v16 0x33 v8 v8zero v8zero 0xff v8 emptyFlags fetch m6502 0x1234 fetchByte
 
 jmpIndINST : M6502Instruction
 jmpIndINST = JMP ds_indirectAbs dd_DUMMY di
 cpuIndJMP1 : M6502 M6502Effect
 cpuIndJMP1 = 0x6c v8 cpuAEq33 runOneStep
-cpuIndJMP1 == 0xcdab v16 0x33 v8 v8zero v8zero v8zero emptyFlags jmpIndINST absRequestIndirect fetchAbsLsb m6502 0xcdac fetchByte
+cpuIndJMP1 == 0xcdab v16 0x33 v8 v8zero v8zero 0xff v8 emptyFlags jmpIndINST absRequestIndirect fetchAbsLsb m6502 0xcdac fetchByte
 cpuIndJMP2 : M6502 M6502Effect
 cpuIndJMP2 = 0x34 v8 cpuIndJMP1 drop runOneStep
-cpuIndJMP2 == 0xcdab v16 0x33 v8 v8zero v8zero v8zero emptyFlags jmpIndINST absRequestIndirect 0x34 v8 fetchAbsMsb m6502 0xcdad fetchByte
+cpuIndJMP2 == 0xcdab v16 0x33 v8 v8zero v8zero 0xff v8 emptyFlags jmpIndINST absRequestIndirect 0x34 v8 fetchAbsMsb m6502 0xcdad fetchByte
 cpuIndJMP3 : M6502 M6502Effect
 cpuIndJMP3 = 0x12 v8 cpuIndJMP2 drop runOneStep
-cpuIndJMP3 == 0xcdab v16 0x33 v8 v8zero v8zero v8zero emptyFlags jmpIndINST 0x1234 fetchAbsLsb2 m6502 0x1234 fetchByte
+cpuIndJMP3 == 0xcdab v16 0x33 v8 v8zero v8zero 0xff v8 emptyFlags jmpIndINST 0x1234 fetchAbsLsb2 m6502 0x1234 fetchByte
 cpuIndJMP4 : M6502 M6502Effect
 cpuIndJMP4 = 0x55 v8 cpuIndJMP3 drop runOneStep
-cpuIndJMP4 == 0xcdab v16 0x33 v8 v8zero v8zero v8zero emptyFlags jmpIndINST 0x1234 0x55 v8 fetchAbsMsb2 m6502 0x1235 fetchByte
+cpuIndJMP4 == 0xcdab v16 0x33 v8 v8zero v8zero 0xff v8 emptyFlags jmpIndINST 0x1234 0x55 v8 fetchAbsMsb2 m6502 0x1235 fetchByte
 cpuIndJMP5 : M6502 M6502Effect
 cpuIndJMP5 = 0x44 v8 cpuIndJMP4 drop runOneStep
-cpuIndJMP5 == 0x4455 v16 0x33 v8 v8zero v8zero v8zero emptyFlags fetch m6502 0x4455 fetchByte
+cpuIndJMP5 == 0x4455 v16 0x33 v8 v8zero v8zero 0xff v8 emptyFlags fetch m6502 0x4455 fetchByte
 
 jsrINST : M6502Instruction
 jsrINST = JSR ds_Abs dd_DUMMY di
 cpuJSR1 : M6502 M6502Effect
 cpuJSR1 = 0x20 v8 cpuAEq33 runOneStep
-cpuJSR1 == 0xcdab v16 0x33 v8 v8zero v8zero v8zero emptyFlags jsrINST absRequest fetchAbsLsb m6502 0xcdac fetchByte
+cpuJSR1 == 0xcdab v16 0x33 v8 v8zero v8zero 0xff v8 emptyFlags jsrINST absRequest fetchAbsLsb m6502 0xcdac fetchByte
 cpuJSR2 : M6502 M6502Effect
 cpuJSR2 = 0x34 v8 cpuJSR1 drop runOneStep
-cpuJSR2 == 0xcdab v16 0x33 v8 v8zero v8zero v8zero emptyFlags jsrINST absRequest 0x34 v8 fetchAbsMsb m6502 0xcdad fetchByte
+cpuJSR2 == 0xcdab v16 0x33 v8 v8zero v8zero 0xff v8 emptyFlags jsrINST absRequest 0x34 v8 fetchAbsMsb m6502 0xcdad fetchByte
 cpuJSR3 : M6502 M6502Effect
 cpuJSR3 = 0x12 v8 cpuJSR2 drop runOneStep
-cpuJSR3 == 0xcdac v16 0x33 v8 v8zero v8zero 0xff v8 emptyFlags 0x1234 jsrPushLsb m6502 0x100 0xae v8 writeByte
+cpuJSR3 == 0xcdac v16 0x33 v8 v8zero v8zero 0xfe v8 emptyFlags 0x1234 jsrPushLsb m6502 0x1ff 0xcd v8 writeByte
 cpuJSR4 : M6502 M6502Effect
 cpuJSR4 = 0 v8 cpuJSR3 drop runOneStep
-cpuJSR4 == 0x1234 v16 0x33 v8 v8zero v8zero 0xfe v8 emptyFlags prefetch m6502 0x1ff 0xcd v8 writeByte
+cpuJSR4 == 0x1234 v16 0x33 v8 v8zero v8zero 0xfd v8 emptyFlags prefetch m6502 0x1fe 0xac v8 writeByte
+
+rtsINST : M6502Instruction
+rtsINST = RTS ds_DUMMY dd_DUMMY di
+cpuRTS1 : M6502 M6502Effect
+cpuRTS1 = 0x60 v8 cpuAEq33 runOneStep
+cpuRTS1 == 0xcdab v16 0x33 v8 v8zero v8zero 0 v8 emptyFlags rtsPopLsb m6502 0x100 fetchByte
+cpuRTS2 : M6502 M6502Effect
+cpuRTS2 = 0x99 v8 cpuRTS1 drop runOneStep
+cpuRTS2 == 0xcdab v16 0x33 v8 v8zero v8zero 1 v8 emptyFlags 0x99 v8 rtsPopMsb m6502 0x101 fetchByte
+cpuRTS3 : M6502 M6502Effect
+cpuRTS3 = 0xaa v8 cpuRTS2 drop runOneStep
+cpuRTS3 == 0x99ab v16 0x33 v8 v8zero v8zero 1 v8 emptyFlags fetch m6502 0x99ab fetchByte
+
+runFetchIter : M6502 Ram Int -- M6502 M6502Effect Ram
+runFetchIter = dip(dup) swap byte_of_ram rotr dip(runOneStep)
+
+runWriteIter : M6502 Ram Int R8 -- M6502 M6502Effect Ram
+runWriteIter = rotl byte_to_ram dip(v8zero swap runOneStep)
+
+runOneIter : M6502 M6502Effect Ram -- M6502 M6502Effect Ram
+runOneIter = swap match(
+  noEff -> v8zero rotr dip(runOneStep),
+  waitInterrupt -> dip(noEff),
+  fetchByte -> runFetchIter,
+  writeByte -> runWriteIter
+  )
+
+checkForZeroFetch : Ram Int -- Bool
+checkForZeroFetch = swap byte_of_ram getR8 0 eq
+
+fetchingZero : M6502Effect Ram -- Bool
+fetchingZero = swap match(fetchByte -> checkForZeroFetch, _ -> drop drop false)
+
+cpuIsFetchingInst : M6502 -- Bool
+cpuIsFetchingInst = stateOf6502 match(fetch -> true, _ -> drop false)
+
+willExecuteBreakInstruction : M6502 M6502Effect Ram -- M6502 M6502Effect Ram Bool
+willExecuteBreakInstruction = dup2 fetchingZero dip3(dup cpuIsFetchingInst) dip(rotl) and
+
+untilBRK : M6502 M6502Effect Ram -- M6502 M6502Effect Ram
+untilBRK = willExecuteBreakInstruction if(, runOneIter untilBRK)
+
+testResetProg : M6502 M6502Effect Ram
+testResetProg = emptyM6502 noEff emptyRam untilBRK
+
+afterTestResetProgCPU : M6502
+afterTestResetProgCPU = testResetProg drop drop
+afterTestResetProgCPU == 0 v16 v8zero v8zero v8zero 0xff v8 emptyFlags fetch m6502
+
+testJSRRTSProg : Ram
+testJSRRTSProg = 0 dip(
+  emptyRam
+  0x0000 0x20 v8 rotl byte_to_ram
+  0x0001 0x08 v8 rotl byte_to_ram
+  0x0002 0x00 v8 rotl byte_to_ram
+  0x0008 0x60 v8 rotl byte_to_ram
+  ) drop
+
+testRunJSRRTSProg : M6502 M6502Effect Ram
+testRunJSRRTSProg = emptyM6502 noEff testJSRRTSProg untilBRK
+
+afterTestJSRRTSProgRam : Ram
+afterTestJSRRTSProgRam = testRunJSRRTSProg dip(drop drop)
+
+afterTestJSRRTSProgCPU : M6502
+afterTestJSRRTSProgCPU = testRunJSRRTSProg drop drop
+
+afterTestJSRRTSProgCPU == 3 v16 v8zero v8zero v8zero 0xff v8 emptyFlags fetch m6502
+0x1ff afterTestJSRRTSProgRam byte_of_ram == 0x00 v8
+0x1fe afterTestJSRRTSProgRam byte_of_ram == 0x02 v8
 
 data TestComputer
   testComputer : M6502 Ram -- TestComputer
