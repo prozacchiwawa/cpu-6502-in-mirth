@@ -9169,6 +9169,9 @@ data M6502State
   fetchAbsLsb : M6502Instruction AbsRequestType -- M6502State
   fetchAbsMsb : M6502Instruction AbsRequestType R8 -- M6502State
 
+  fetchAbsLsb2 : M6502Instruction Int -- M6502State
+  fetchAbsMsb2 : M6502Instruction Int R8 -- M6502State
+
   prefetch : M6502State
 
 #  intrSet : M6502State -- M6502State
@@ -10335,6 +10338,9 @@ fetchAbsNewState = fetchAbsMsb nextState6502
 
 doFetchAbsMsb = fetchAbsMsbPrepare fetchAbsMsbSideEffect dip(fetchAbsMsbResultRelevant fetchAbsNewState)
 
+doFetchAbsIndMsb : R8 M6502 M6502Instruction Int -- M6502 M6502Effect
+doFetchAbsIndMsb = dup dip(dip(rotl) swap fetchAbsMsb2 nextState6502) 1 + fetchByte
+
 doComputeAbsAddr(getter : M6502 -- Int) : M6502 M6502Instruction Int -- M6502 M6502Instruction Int
 doComputeAbsAddr(getter) = dip2(dup) rotl getter +
 
@@ -10368,7 +10374,7 @@ continueAbsWithAddress =
       absRequest -> doComputeAbsAddr(drop 0) doContinueAbs
     , absRequestPlusX -> doComputeAbsAddr(getX6502 getR8) doContinueAbs
     , absRequestPlusY -> doComputeAbsAddr(getY6502 getR8) doContinueAbs
-    , absRequestIndirect -> drop drop noEff
+    , absRequestIndirect -> dup dip(fetchAbsLsb2 nextState6502) fetchByte
   )
 
 continueAbs : R8 M6502 M6502Instruction AbsRequestType R8 -- M6502 M6502Effect
@@ -10402,7 +10408,10 @@ runOneStep = dup stateOf6502 match(reset -> readByteAfterReset,
   fetchZPByteDest -> doWriteAfterZPFetch,
 
   fetchAbsLsb -> doFetchAbsMsb,
-  fetchAbsMsb -> continueAbs
+  fetchAbsMsb -> continueAbs,
+
+  fetchAbsLsb2 -> doFetchAbsIndMsb,
+  fetchAbsMsb2 -> swap drop absRequest swap continueAbs
   )
 
 0x80 v8 emptyM6502 setF6502 == v16zero v8zero v8zero v8zero v8zero emptyFlags true setNFlag reset m6502
@@ -10568,6 +10577,24 @@ cpuJMP2 == 0xcdab v16 0x33 v8 v8zero v8zero v8zero emptyFlags jmpINST absRequest
 cpuJMP3 : M6502 M6502Effect
 cpuJMP3 = 0x12 v8 cpuJMP2 drop runOneStep
 cpuJMP3 == 0x1234 v16 0x33 v8 v8zero v8zero v8zero emptyFlags fetch m6502 0x1234 fetchByte
+
+jmpIndINST : M6502Instruction
+jmpIndINST = JMP ds_indirectAbs dd_DUMMY di
+cpuIndJMP1 : M6502 M6502Effect
+cpuIndJMP1 = 0x6c v8 cpuAEq33 runOneStep
+cpuIndJMP1 == 0xcdab v16 0x33 v8 v8zero v8zero v8zero emptyFlags jmpIndINST absRequestIndirect fetchAbsLsb m6502 0xcdac fetchByte
+cpuIndJMP2 : M6502 M6502Effect
+cpuIndJMP2 = 0x34 v8 cpuIndJMP1 drop runOneStep
+cpuIndJMP2 == 0xcdab v16 0x33 v8 v8zero v8zero v8zero emptyFlags jmpIndINST absRequestIndirect 0x34 v8 fetchAbsMsb m6502 0xcdad fetchByte
+cpuIndJMP3 : M6502 M6502Effect
+cpuIndJMP3 = 0x12 v8 cpuIndJMP2 drop runOneStep
+cpuIndJMP3 == 0xcdab v16 0x33 v8 v8zero v8zero v8zero emptyFlags jmpIndINST 0x1234 fetchAbsLsb2 m6502 0x1234 fetchByte
+cpuIndJMP4 : M6502 M6502Effect
+cpuIndJMP4 = 0x55 v8 cpuIndJMP3 drop runOneStep
+cpuIndJMP4 == 0xcdab v16 0x33 v8 v8zero v8zero v8zero emptyFlags jmpIndINST 0x1234 0x55 v8 fetchAbsMsb2 m6502 0x1235 fetchByte
+cpuIndJMP5 : M6502 M6502Effect
+cpuIndJMP5 = 0x44 v8 cpuIndJMP4 drop runOneStep
+cpuIndJMP5 == 0x4455 v16 0x33 v8 v8zero v8zero v8zero emptyFlags fetch m6502 0x4455 fetchByte
 
 data TestComputer
   testComputer : M6502 Ram -- TestComputer
