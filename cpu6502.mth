@@ -72,6 +72,9 @@ end
 v16zero : -- R16
 v16zero = 0 v16
 
+getR16 : R16 -- Int
+getR16 = match(v16 ->)
+
 data Para
   para : R8 R8 R8 R8 R8 R8 R8 R8 R8 R8 R8 R8 R8 R8 R8 R8 -- Para
 end
@@ -9134,6 +9137,13 @@ data M6502ZPRegister
   zpPlusY : M6502ZPRegister
 end
 
+data AbsRequestType
+  absRequest : AbsRequestType
+  absRequestIndirect : AbsRequestType
+  absRequestPlusX : AbsRequestType
+  absRequestPlusY : AbsRequestType
+end
+
 data M6502State
   reset : M6502State
   resetReceiveFirstByte : M6502State
@@ -9155,6 +9165,9 @@ data M6502State
   fetchOperandAbsHaveLsb : R8 M6502Instruction -- M6502State
 
   fetchZPByteDest : Int R8 M6502ZPRegister -- M6502State
+
+  fetchAbsLsb : M6502Instruction AbsRequestType -- M6502State
+  fetchAbsMsb : M6502Instruction AbsRequestType R8 -- M6502State
 
   prefetch : M6502State
 
@@ -9846,7 +9859,7 @@ addR8Dec = unpackR8s getYPlusC dup2 getLowDecimalDigits generateFirstDigitAndCar
 0x09 v8 0x11 v8 false addR8Dec == 0x20 v8 emptyFlags
 
 addR16 : Int R16 -- R16
-addR16 = match(v16 -> ) + 65536 % v16
+addR16 = getR16 + 65536 % v16
 
 decSP6502 : M6502 -- M6502
 decSP6502 = match(m6502 -> dip(dip(decR8)) m6502)
@@ -9858,7 +9871,7 @@ incPC6502 : Int M6502 -- M6502
 incPC6502 = dup getPC6502 swap dip(addR16) setPC6502
 
 fetchPCEffect : M6502 -- M6502 M6502Effect
-fetchPCEffect = fetch nextState6502 dup getPC6502 match(v16 ->) fetchByte
+fetchPCEffect = fetch nextState6502 dup getPC6502 getR16 fetchByte
 
 push6502 : M6502 R8 -- M6502 M6502Effect
 push6502 = dip(dup getSP6502 getR8 0x100 + dip(decSP6502)) writeByte
@@ -9879,10 +9892,10 @@ received2ndByteOfAddrAfterReset : R8 R8 M6502 -- M6502 M6502Effect
 received2ndByteOfAddrAfterReset = dip(numMsbLsb v16) setPC6502 fetchPCEffect
 
 pushPCByteLsbIntr : R8 M6502InterruptType M6502 -- M6502 M6502Effect
-pushPCByteLsbIntr = dip(dip(drop)) dup getPC6502 match(v16 ->) 256 % v8 push6502 dip(swap intrPushedPCByteLsb nextState6502)
+pushPCByteLsbIntr = dip(dip(drop)) dup getPC6502 getR16 256 % v8 push6502 dip(swap intrPushedPCByteLsb nextState6502)
 
 pushPCByteMsbIntr : R8 M6502InterruptType M6502 -- M6502 M6502Effect
-pushPCByteMsbIntr = dip(dip(drop)) dup getPC6502 match(v16 ->) 256 / v8 push6502 dip(swap intrPushedPCByteMsb nextState6502)
+pushPCByteMsbIntr = dip(dip(drop)) dup getPC6502 getR16 256 / v8 push6502 dip(swap intrPushedPCByteMsb nextState6502)
 
 setBrkBit : R8 -- R8
 setBrkBit = 16 setBitR8
@@ -10270,8 +10283,8 @@ prepareWriteAfterZPFetch = drop dip(rotl getR8 +)
 doWriteAfterZPFetch : R8 M6502 Int R8 M6502ZPRegister -- M6502 M6502Effect
 doWriteAfterZPFetch = prepareWriteAfterZPFetch writeByte dip(prefetch nextState6502)
 
-requestAbsLsb : M6502 M6502Instruction Int -- M6502 M6502Effect
-requestAbsLsb = drop v8zero rotr continueInstruction
+requestAbsLsb : M6502 M6502Instruction AbsRequestType -- M6502 M6502Effect
+requestAbsLsb = dip2(dup getPC6502) rotl getR16 1 + fetchByte dip(fetchAbsLsb nextState6502)
 
 extractReg(getter : M6502 -- R8) : M6502 -- R8 M6502
 extractReg(getter) = dup getter swap
@@ -10289,10 +10302,10 @@ performInstruction = match(ds_DUMMY -> v8zero rotr continueInstruction,
   ds_zpY -> zpPlusY requestZPxOperand,
   ds_indexedIndirectX -> requestIndexedIndirectX,
   ds_indirectIndexedY -> requestIndirectIndexedY,
-  ds_Abs -> 0 requestAbsLsb,
-  ds_AbsX -> 1 requestAbsLsb,
-  ds_AbsY -> 2 requestAbsLsb,
-  ds_indirectAbs -> 3 requestAbsLsb,
+  ds_Abs -> absRequest requestAbsLsb,
+  ds_AbsX -> absRequestPlusX requestAbsLsb,
+  ds_AbsY -> absRequestPlusY requestAbsLsb,
+  ds_indirectAbs -> absRequestIndirect requestAbsLsb,
   ds_Stack -> requestStackPop)
 
 haveInstructionByte : R8 M6502 -- M6502 M6502Effect
@@ -10305,6 +10318,61 @@ haveOperandByte = continueInstruction
 # pushOutput = writeOutput
 interruptPushPCLsb : R8 M6502 M6502InterruptType -- M6502 M6502Effect
 interruptPushPCLsb = dip(dup getPC6502 match(v16 -> 256 %) v8 rotr dip(drop) dd_Stack writeOutput) swap dip(intrPushedPCByteLsb nextState6502)
+
+doFetchAbsMsb : R8 M6502 M6502Instruction AbsRequestType -- M6502 M6502Effect
+
+fetchAbsMsbPrepare : R8 M6502 M6502Instruction AbsRequestType -- R8 M6502 M6502Instruction AbsRequestType R16
+fetchAbsMsbPrepare = dip2(dup getPC6502) rotl
+
+fetchAbsMsbSideEffect : R8 M6502 M6502Instruction AbsRequestType R16 -- R8 M6502 M6502Instruction AbsRequestType M6502Effect
+fetchAbsMsbSideEffect = getR16 2 + fetchByte
+
+fetchAbsMsbResultRelevant : R8 M6502 M6502Instruction AbsRequestType -- M6502 M6502Instruction AbsRequestType R8
+fetchAbsMsbResultRelevant = dip(rotl) swap
+
+fetchAbsNewState : M6502 M6502Instruction AbsRequestType R8 -- M6502
+fetchAbsNewState = fetchAbsMsb nextState6502
+
+doFetchAbsMsb = fetchAbsMsbPrepare fetchAbsMsbSideEffect dip(fetchAbsMsbResultRelevant fetchAbsNewState)
+
+doComputeAbsAddr(getter : M6502 -- Int) : M6502 M6502Instruction Int -- M6502 M6502Instruction Int
+doComputeAbsAddr(getter) = dip2(dup) rotl getter +
+
+getInsnLabel : M6502Instruction -- M6502InstLabel
+getInsnLabel = match(di -> drop drop)
+
+executeJMP : M6502 M6502Instruction Int -- M6502 M6502Effect
+executeJMP = swap drop v16 swap setPC6502 fetchPCEffect
+
+doContinueAbsPrepareIns : M6502 M6502Instruction Int -- M6502 M6502Instruction Int M6502InstLabel
+doContinueAbsPrepareIns = dip(dup getInsnLabel) swap
+
+doAbsContinueNormal : M6502 M6502Instruction Int -- M6502 M6502Effect
+doAbsContinueNormal = fetchByte dip(fetchOperand nextState6502)
+
+doAbsContinueFinish1 : M6502 M6502Instruction Int Bool -- M6502 M6502Effect
+doAbsContinueFinish1 = if(executeJMP, doAbsContinueNormal)
+
+doAbsContinueIsJmp? : M6502InstLabel -- Bool
+doAbsContinueIsJmp? = match(JMP -> true, _ -> false swap drop)
+
+doAbsContinueFinish : M6502 M6502Instruction Int M6502InstLabel -- M6502 M6502Effect
+doAbsContinueFinish = doAbsContinueIsJmp? doAbsContinueFinish1
+
+doContinueAbs : M6502 M6502Instruction Int -- M6502 M6502Effect
+doContinueAbs = doContinueAbsPrepareIns doAbsContinueFinish
+
+continueAbsWithAddress : M6502 M6502Instruction AbsRequestType Int -- M6502 M6502Effect
+continueAbsWithAddress =
+  swap match(
+      absRequest -> doComputeAbsAddr(drop 0) doContinueAbs
+    , absRequestPlusX -> doComputeAbsAddr(getX6502 getR8) doContinueAbs
+    , absRequestPlusY -> doComputeAbsAddr(getY6502 getR8) doContinueAbs
+    , absRequestIndirect -> drop drop noEff
+  )
+
+continueAbs : R8 M6502 M6502Instruction AbsRequestType R8 -- M6502 M6502Effect
+continueAbs = dip2(rotl) rotl numLsbMsb continueAbsWithAddress
 
 runOneStepDummy : R8 M6502 -- M6502 M6502Effect
 runOneStepDummy = drop drop emptyM6502 noEff
@@ -10331,7 +10399,10 @@ runOneStep = dup stateOf6502 match(reset -> readByteAfterReset,
   fetchOperandAbsLsb -> drop runOneStepDummy,
   fetchOperandAbsHaveLsb -> drop drop runOneStepDummy,
 
-  fetchZPByteDest -> doWriteAfterZPFetch
+  fetchZPByteDest -> doWriteAfterZPFetch,
+
+  fetchAbsLsb -> doFetchAbsMsb,
+  fetchAbsMsb -> continueAbs
   )
 
 0x80 v8 emptyM6502 setF6502 == v16zero v8zero v8zero v8zero v8zero emptyFlags true setNFlag reset m6502
@@ -10485,6 +10556,18 @@ cpuXOR3 == 0xcdad v16 v8zero v8zero v8zero v8zero emptyFlags true setZFlag fetch
 cpuXOR4 : M6502 M6502Effect
 cpuXOR4 = 0xc0 v8 cpuXOR1 drop runOneStep
 cpuXOR4 == 0xcdad v16 0xf3 v8 v8zero v8zero v8zero emptyFlags true setNFlag fetch m6502 0xcdad fetchByte
+
+jmpINST : M6502Instruction
+jmpINST = JMP ds_Abs dd_DUMMY di
+cpuJMP1 : M6502 M6502Effect
+cpuJMP1 = 0x4c v8 cpuAEq33 runOneStep
+cpuJMP1 == 0xcdab v16 0x33 v8 v8zero v8zero v8zero emptyFlags jmpINST absRequest fetchAbsLsb m6502 0xcdac fetchByte
+cpuJMP2 : M6502 M6502Effect
+cpuJMP2 = 0x34 v8 cpuJMP1 drop runOneStep
+cpuJMP2 == 0xcdab v16 0x33 v8 v8zero v8zero v8zero emptyFlags jmpINST absRequest 0x34 v8 fetchAbsMsb m6502 0xcdad fetchByte
+cpuJMP3 : M6502 M6502Effect
+cpuJMP3 = 0x12 v8 cpuJMP2 drop runOneStep
+cpuJMP3 == 0x1234 v16 0x33 v8 v8zero v8zero v8zero emptyFlags fetch m6502 0x1234 fetchByte
 
 data TestComputer
   testComputer : M6502 Ram -- TestComputer
