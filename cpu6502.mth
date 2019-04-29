@@ -9172,6 +9172,8 @@ data M6502State
   fetchAbsLsb2 : M6502Instruction Int -- M6502State
   fetchAbsMsb2 : M6502Instruction Int R8 -- M6502State
 
+  jsrPushLsb : Int -- M6502State
+
   prefetch : M6502State
 
 #  intrSet : M6502State -- M6502State
@@ -10236,8 +10238,8 @@ doInstructionBody = match(ADC -> adcInst,
   DEx -> 255 binAddConst,
   EOR -> bitwiseInst(xor),
   INx -> 1 binAddConst,
-  JMP -> nopInst,
-  JSR -> nopInst,
+  JMP -> nopInst, # Special handling downstream of address mode, since arg isn't R8
+  JSR -> nopInst, # Ditto
   LDx -> transfer,
   LSR -> nopInst,
   NOP -> nopInst,
@@ -10317,8 +10319,6 @@ haveInstructionByte = swap categorizeInstruction decodeInstruction dup getInstru
 haveOperandByte : R8 M6502 M6502Instruction -- M6502 M6502Effect
 haveOperandByte = continueInstruction
 
-# pushOutput : R8 M6502 M6502DataDest -- M6502 M6502Effect
-# pushOutput = writeOutput
 interruptPushPCLsb : R8 M6502 M6502InterruptType -- M6502 M6502Effect
 interruptPushPCLsb = dip(dup getPC6502 match(v16 -> 256 %) v8 rotr dip(drop) dd_Stack writeOutput) swap dip(intrPushedPCByteLsb nextState6502)
 
@@ -10350,17 +10350,32 @@ getInsnLabel = match(di -> drop drop)
 executeJMP : M6502 M6502Instruction Int -- M6502 M6502Effect
 executeJMP = swap drop v16 swap setPC6502 fetchPCEffect
 
+executeJSRNewState : M6502 Int -- M6502
+executeJSRNewState = jsrPushLsb nextState6502
+
+doJSRPushLsb : M6502 -- M6502 M6502Effect
+doJSRPushLsb = dup getPC6502 getR16 3 + 256 % v8 swap dd_Stack writeOutput
+
+executeJSR : M6502 M6502Instruction Int -- M6502 M6502Effect
+executeJSR = swap drop dip(doJSRPushLsb) swap dip(executeJSRNewState)
+
 doContinueAbsPrepareIns : M6502 M6502Instruction Int -- M6502 M6502Instruction Int M6502InstLabel
 doContinueAbsPrepareIns = dip(dup getInsnLabel) swap
 
 doAbsContinueNormal : M6502 M6502Instruction Int -- M6502 M6502Effect
 doAbsContinueNormal = fetchByte dip(fetchOperand nextState6502)
 
-doAbsContinueFinish1 : M6502 M6502Instruction Int Bool -- M6502 M6502Effect
-doAbsContinueFinish1 = if(executeJMP, doAbsContinueNormal)
+data SpecialInstructionType
+  isJMP : SpecialInstructionType
+  isJSR : SpecialInstructionType
+  isOther : SpecialInstructionType
+end
 
-doAbsContinueIsJmp? : M6502InstLabel -- Bool
-doAbsContinueIsJmp? = match(JMP -> true, _ -> false swap drop)
+doAbsContinueFinish1 : M6502 M6502Instruction Int SpecialInstructionType -- M6502 M6502Effect
+doAbsContinueFinish1 = match(isJMP -> executeJMP, isJSR -> executeJSR, _ -> drop doAbsContinueNormal)
+
+doAbsContinueIsJmp? : M6502InstLabel -- SpecialInstructionType
+doAbsContinueIsJmp? = match(JMP -> isJMP, JSR -> isJSR, _ -> isOther swap drop)
 
 doAbsContinueFinish : M6502 M6502Instruction Int M6502InstLabel -- M6502 M6502Effect
 doAbsContinueFinish = doAbsContinueIsJmp? doAbsContinueFinish1
@@ -10379,6 +10394,12 @@ continueAbsWithAddress =
 
 continueAbs : R8 M6502 M6502Instruction AbsRequestType R8 -- M6502 M6502Effect
 continueAbs = dip2(rotl) rotl numLsbMsb continueAbsWithAddress
+
+jsrPushMsb : M6502 -- M6502 M6502Effect
+jsrPushMsb = dup getPC6502 getR16 256 / 256 % v8 swap dd_Stack writeOutput
+
+continueJSR : R8 M6502 Int -- M6502 M6502Effect
+continueJSR = dip2(drop) dip(jsrPushMsb) swap dip(v16 swap setPC6502)
 
 runOneStepDummy : R8 M6502 -- M6502 M6502Effect
 runOneStepDummy = drop drop emptyM6502 noEff
@@ -10411,7 +10432,9 @@ runOneStep = dup stateOf6502 match(reset -> readByteAfterReset,
   fetchAbsMsb -> continueAbs,
 
   fetchAbsLsb2 -> doFetchAbsIndMsb,
-  fetchAbsMsb2 -> swap drop absRequest swap continueAbs
+  fetchAbsMsb2 -> swap drop absRequest swap continueAbs,
+
+  jsrPushLsb -> continueJSR
   )
 
 0x80 v8 emptyM6502 setF6502 == v16zero v8zero v8zero v8zero v8zero emptyFlags true setNFlag reset m6502
@@ -10595,6 +10618,21 @@ cpuIndJMP4 == 0xcdab v16 0x33 v8 v8zero v8zero v8zero emptyFlags jmpIndINST 0x12
 cpuIndJMP5 : M6502 M6502Effect
 cpuIndJMP5 = 0x44 v8 cpuIndJMP4 drop runOneStep
 cpuIndJMP5 == 0x4455 v16 0x33 v8 v8zero v8zero v8zero emptyFlags fetch m6502 0x4455 fetchByte
+
+jsrINST : M6502Instruction
+jsrINST = JSR ds_Abs dd_DUMMY di
+cpuJSR1 : M6502 M6502Effect
+cpuJSR1 = 0x20 v8 cpuAEq33 runOneStep
+cpuJSR1 == 0xcdab v16 0x33 v8 v8zero v8zero v8zero emptyFlags jsrINST absRequest fetchAbsLsb m6502 0xcdac fetchByte
+cpuJSR2 : M6502 M6502Effect
+cpuJSR2 = 0x34 v8 cpuJSR1 drop runOneStep
+cpuJSR2 == 0xcdab v16 0x33 v8 v8zero v8zero v8zero emptyFlags jsrINST absRequest 0x34 v8 fetchAbsMsb m6502 0xcdad fetchByte
+cpuJSR3 : M6502 M6502Effect
+cpuJSR3 = 0x12 v8 cpuJSR2 drop runOneStep
+cpuJSR3 == 0xcdac v16 0x33 v8 v8zero v8zero 0xff v8 emptyFlags 0x1234 jsrPushLsb m6502 0x100 0xae v8 writeByte
+cpuJSR4 : M6502 M6502Effect
+cpuJSR4 = 0 v8 cpuJSR3 drop runOneStep
+cpuJSR4 == 0x1234 v16 0x33 v8 v8zero v8zero 0xfe v8 emptyFlags prefetch m6502 0x1ff 0xcd v8 writeByte
 
 data TestComputer
   testComputer : M6502 Ram -- TestComputer
