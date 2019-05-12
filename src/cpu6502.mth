@@ -1,5 +1,6 @@
 import base/int
 import base/nat
+import base/str
 import base/list
 import base/maybe
 import r8
@@ -30,6 +31,8 @@ export cpu6502
   emptyM6502 : M6502
   runOneIter : M6502 M6502Effect Ram -- M6502 M6502Effect Ram
   untilBRK : M6502 M6502Effect Ram -- M6502 M6502Effect Ram
+
+  showM6502 : M6502 -- Str
 end
 
 data M6502InterruptType
@@ -162,14 +165,58 @@ data M6502State
 
   jsrPushLsb : Int -- M6502State
 
-  rtsPopLsb : M6502State
-  rtsPopMsb : R8 -- M6502State
+  rtsPopMsb : M6502State
+  rtsPopLsb : R8 -- M6502State
 
   prefetch : M6502State
 
 #  intrSet : M6502State -- M6502State
 #  nmiSet : M6502State -- M6502State
 end
+
+showAnd(convert : t -- Str) : t Str -- Str
+showAnd(convert) = swap convert " " swap <> <>
+
+showAndR8 : R8 Str -- Str
+showAndR8 = showAnd(getR8Int int->str)
+
+showAndInt : Int Str -- Str
+showAndInt = showAnd(int->str)
+
+showM6502State : M6502State -- Str
+showM6502State = match(
+  reset -> "reset",
+  resetReceiveFirstByte -> "resetReceiveFirstByte",
+  resetReceiveSecondByte -> "resetReceiveSecondByte" showAndR8,
+  intr -> drop "intr",
+  intrPushedPCByteLsb -> drop "intrPushedPCByteLsb",
+  intrPushedPCByteMsb -> drop "intrPushedPCByteMsb",
+  intrPushedFlags -> "intrPushedFlags",
+  intrWantPCLsb -> "intrWantPCLsb",
+  intrGotPCLsb -> "intrWantPCLsb" showAndR8,
+
+  fetch -> "fetch",
+  fetchOperand -> drop "fetchOperand",
+
+  fetchZPByte -> drop drop "fetchZPByte",
+
+  fetchOperandAbsLsb -> drop "fetchOperandAbsLsb",
+  fetchOperandAbsHaveLsb -> drop "fetchOperandAbsHaveLsb" showAndR8,
+
+  fetchZPByteDest -> drop "fetchZPByteDesc" showAndR8 showAndInt,
+
+  fetchAbsLsb -> drop drop "fetchAbsLsb",
+  fetchAbsMsb -> dip(drop drop) "fetchAbsMsb" showAndR8,
+
+  fetchAbsLsb2 -> swap drop "fetchAbsLsb2" showAndInt,
+  fetchAbsMsb2 -> rotl drop "fetchAbsMsb2" showAndR8 showAndInt,
+
+  jsrPushLsb -> "jsrPushLsb" showAndInt,
+  rtsPopMsb -> "rtsPopMsb",
+  rtsPopLsb -> "rtsPopLsb" showAndR8,
+
+  prefetch -> "prefetch"
+  )
 
 data M6502Effect
   noEff : M6502Effect
@@ -882,7 +929,7 @@ numLsbMsb : R8 R8 -- Int
 numLsbMsb = getR8Int 256 z* swap getR8Int z+
 
 numMsbLsb : R8 R8 -- Int
-numMsbLsb = getR8Int swap getR8Int 256 z* z+
+numMsbLsb = swap numLsbMsb
                                     
 readByteAfterReset : R8 M6502 -- M6502 M6502Effect
 readByteAfterReset = dip(drop) resetReceiveFirstByte nextState6502 0xfffc fetchByte
@@ -1225,7 +1272,7 @@ rtsReduceIncSP : R8 M6502 M6502DataSource M6502DataDest -- M6502
 rtsReduceIncSP = drop drop swap drop incSP6502
 
 doRTS : R8 M6502 M6502DataSource M6502DataDest -- M6502 M6502Effect
-doRTS = rtsReduceIncSP rtsPopLsb nextState6502 dup getSP6502 getR8Int 0x100 z+ fetchByte
+doRTS = rtsReduceIncSP rtsPopMsb nextState6502 dup getSP6502 getR8Int 0x100 z+ fetchByte
 
 doInstructionBody : R8 M6502 M6502DataSource M6502DataDest M6502InstLabel -- M6502 M6502Effect
 doInstructionBody = match(ADC -> adcInst,
@@ -1357,7 +1404,7 @@ executeJSRNewState : M6502 Int -- M6502
 executeJSRNewState = jsrPushLsb nextState6502
 
 doJSRPushMsb : M6502 -- M6502 M6502Effect
-doJSRPushMsb = dup getPC6502 getR16Int 3 z+ 256 zpos z/ 256 modInt v8 swap dd_Stack writeOutput
+doJSRPushMsb = dup getPC6502 getR16Int 1 z+ 256 zpos z/ 256 modInt v8 swap dd_Stack writeOutput
 
 executeJSR : M6502 M6502Instruction Int -- M6502 M6502Effect
 executeJSR = swap drop dip(doJSRPushMsb) swap dip(executeJSRNewState)
@@ -1399,16 +1446,16 @@ continueAbs : R8 M6502 M6502Instruction AbsRequestType R8 -- M6502 M6502Effect
 continueAbs = dip2(rotl) rotl numLsbMsb continueAbsWithAddress
 
 doJsrPushLsb : M6502 -- M6502 M6502Effect
-doJsrPushLsb = dup getPC6502 getR16Int 256 modInt v8 swap dd_Stack writeOutput
+doJsrPushLsb = dup getPC6502 getR16Int 1 z+ 256 modInt v8 swap dd_Stack writeOutput
 
 continueJSR : R8 M6502 Int -- M6502 M6502Effect
 continueJSR = dip2(drop) dip(doJsrPushLsb) swap dip(v16 swap setPC6502)
 
 continueRTS : R8 M6502 -- M6502 M6502Effect
-continueRTS = incSP6502 swap rtsPopMsb nextState6502 dup getSP6502 getR8Int 0x100 z+ fetchByte
+continueRTS = incSP6502 swap rtsPopLsb nextState6502 dup getSP6502 getR8Int 0x100 z+ fetchByte
 
 finishRTS : R8 M6502 R8 -- M6502 M6502Effect
-finishRTS = rotl swap numLsbMsb 1 z+ v16 swap setPC6502 fetch nextState6502 fetchPCEffect
+finishRTS = rotl swap numMsbLsb 1 z+ v16 swap setPC6502 fetch nextState6502 fetchPCEffect
 
 runOneStepDummy : R8 M6502 -- M6502 M6502Effect
 runOneStepDummy = drop drop emptyM6502 noEff
@@ -1445,8 +1492,8 @@ runOneStep = dup stateOf6502 match(reset -> readByteAfterReset,
 
   jsrPushLsb -> continueJSR,
 
-  rtsPopLsb -> continueRTS,
-  rtsPopMsb -> finishRTS
+  rtsPopMsb -> continueRTS,
+  rtsPopLsb -> finishRTS
   )
 
 0x80 v8 emptyM6502 setF6502 == v16zero v8zero v8zero v8zero 0xff v8 emptyFlags true setNFlag reset m6502
@@ -1644,19 +1691,36 @@ cpuJSR3 = 0x12 v8 cpuJSR2 drop runOneStep
 cpuJSR3 == 0xcdac v16 0x33 v8 v8zero v8zero 0xfe v8 emptyFlags 0x1234 jsrPushLsb m6502 0x1ff 0xcd v8 writeByte
 cpuJSR4 : M6502 M6502Effect
 cpuJSR4 = 0 v8 cpuJSR3 drop runOneStep
-cpuJSR4 == 0x1234 v16 0x33 v8 v8zero v8zero 0xfd v8 emptyFlags prefetch m6502 0x1fe 0xac v8 writeByte
+cpuJSR4 == 0x1234 v16 0x33 v8 v8zero v8zero 0xfd v8 emptyFlags prefetch m6502 0x1fe 0xad v8 writeByte
 
 rtsINST : M6502Instruction
 rtsINST = RTS ds_DUMMY dd_DUMMY di
 cpuRTS1 : M6502 M6502Effect
 cpuRTS1 = 0x60 v8 cpuAEq33 runOneStep
-cpuRTS1 == 0xcdab v16 0x33 v8 v8zero v8zero 0 v8 emptyFlags rtsPopLsb m6502 0x100 fetchByte
+cpuRTS1 == 0xcdab v16 0x33 v8 v8zero v8zero 0 v8 emptyFlags rtsPopMsb m6502 0x100 fetchByte
 cpuRTS2 : M6502 M6502Effect
 cpuRTS2 = 0x99 v8 cpuRTS1 drop runOneStep
-cpuRTS2 == 0xcdab v16 0x33 v8 v8zero v8zero 1 v8 emptyFlags 0x99 v8 rtsPopMsb m6502 0x101 fetchByte
+cpuRTS2 == 0xcdab v16 0x33 v8 v8zero v8zero 1 v8 emptyFlags 0x99 v8 rtsPopLsb m6502 0x101 fetchByte
 cpuRTS3 : M6502 M6502Effect
 cpuRTS3 = 0xaa v8 cpuRTS2 drop runOneStep
-cpuRTS3 == 0x99ab v16 0x33 v8 v8zero v8zero 1 v8 emptyFlags fetch m6502 0x99ab fetchByte
+cpuRTS3 == 0xaa9a v16 0x33 v8 v8zero v8zero 1 v8 emptyFlags fetch m6502 0xaa9a fetchByte
+
+showValueOnStack(convert : t -- Str) : t Str -- Str
+showValueOnStack(convert) = dip(convert) swap <>
+
+combineWithPrev(convert : t -- Str) : t Str Str -- Str
+combineWithPrev(convert) = rotr dip(swap showValueOnStack(convert)) <>
+
+showM6502 : M6502 -- Str
+showM6502 = match(m6502 ->
+  " state " showValueOnStack(showM6502State)
+  " flags " combineWithPrev(match(flgBits -> getR8Int int->str))
+  " sp " combineWithPrev(getR8Int int->str)
+  " y " combineWithPrev(getR8Int int->str)
+  " x " combineWithPrev(getR8Int int->str)
+  " a " combineWithPrev(getR8Int int->str)
+  "m6502: pc " combineWithPrev(getR16Int int->str)
+  )
 
 runFetchIter : M6502 Ram Int -- M6502 M6502Effect Ram
 runFetchIter = dip(dup) swap byte_of_ram rotr dip(runOneStep)

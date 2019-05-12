@@ -7,6 +7,7 @@ import r8
 import r16
 import lines
 import verifier
+import cpusinglestep
 
 testResetProg : M6502 M6502Effect Ram
 testResetProg = emptyM6502 noEff emptyRam untilBRK
@@ -25,10 +26,16 @@ testJSRRTSProg = ↴(
   )
 
 0 0x20 testJSRRTSProg showRange print == id
+0xfffa 6 testJSRRTSProg showRange print == id
+
+afterSteps : M6502 M6502Effect Ram +IO
+afterSteps = emptyM6502 noEff testJSRRTSProg 15 runSteps
+
+afterSteps drop drop drop == id
 
 testRunJSRRTSProg : M6502 M6502Effect Ram
 testRunJSRRTSProg = emptyM6502 noEff testJSRRTSProg untilBRK
-  
+
 afterTestJSRRTSProgRam : Ram
 afterTestJSRRTSProgRam = testRunJSRRTSProg dip(drop drop)
 

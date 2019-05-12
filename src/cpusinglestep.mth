@@ -1,0 +1,15 @@
+import base/io
+import base/int
+import cpu6502
+import ram
+
+export cpusinglestep
+  type M6502
+  type M6502Effect
+  type Ram
+  
+  runSteps : M6502 M6502Effect Ram Int +IO -- M6502 M6502Effect Ram +IO
+end
+
+runSteps : M6502 M6502Effect Ram Int +IO -- M6502 M6502Effect Ram +IO
+runSteps = dup 0 z= if(drop, dip(runOneIter dip2(dup) rotl) 1 z- swap showM6502 print runSteps)
