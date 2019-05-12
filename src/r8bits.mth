@@ -1,0 +1,23 @@
+import r8
+import bits
+
+export r8bits
+  type R8
+  setBitR8 : R8 Int -- R8
+  dropBitR8 : R8 Int -- R8
+end
+
+setBitR8 : R8 Int -- R8
+setBitR8 = dip(getR8Int) setBit v8
+
+24 v8 16 setBitR8 == 24 v8
+0 v8 16 setBitR8 == 16 v8
+3 v8 16 setBitR8 == 19 v8
+
+dropBitR8 : R8 Int -- R8
+dropBitR8 = dip(getR8Int) dropBit v8
+
+24 v8 16 dropBitR8 == 8 v8
+0 v8 16 dropBitR8 == 0 v8
+16 v8 16 dropBitR8 == 0 v8
+

@@ -1,0 +1,71 @@
+import base/int
+import base/list
+import base/maybe
+import base/str
+
+import divmod
+import r8
+
+export ram
+  type R8
+  type Ram
+  ram : List(R8) -- Ram
+  emptyRam : Ram  
+
+  byte_of_ram : Int Ram -- R8
+  byte_to_ram : Int R8 Ram -- Ram
+
+  showRam : Ram -- Str
+end
+
+data Ram
+  ram : List(R8) -- Ram
+end
+
+emptyRam : Ram
+
+emptyRam_ : List(t) t Int -- List(t)
+
+emptyRamReturnList : List(t) t Int -- List(t)
+emptyRamReturnList = drop drop
+
+emptyRamNext : List(t) t Int -- List(t)
+emptyRamNext = rotr dup dip(cons) rotl 1 z- emptyRam_ 
+
+emptyRam_ = dup 0 z= if(emptyRamReturnList, emptyRamNext)
+
+emptyRam = nil v8zero 65536 emptyRam_ ram
+
+byte_of_ram : Int Ram -- R8
+
+byte_of_ram_prepare_check : Int Ram -- List(R8)
+byte_of_ram_prepare_check = match(ram -> swap znat break swap drop)
+
+byte_of_ram = byte_of_ram_prepare_check nil? if(drop v8zero, unsnoc drop)
+
+byte_to_ram : Int R8 Ram -- Ram
+
+break_into_lists : List(R8) Int -- List(R8) List(R8) List(R8)
+break_into_lists = znat break swap dip(1 znat break swap)
+
+consume_new_element : R8 List(R8) List(R8) List(R8) -- List(R8)
+consume_new_element = dip2(swap) dip(drop) snoc cat
+
+byte_to_ram = match(ram -> rotl break_into_lists consume_new_element ram)
+
+tinyRam : Ram
+tinyRam = nil 0 v8 cons 1 v8 cons 2 v8 cons 3 v8 cons ram
+
+0 tinyRam byte_of_ram == 0 v8
+1 tinyRam byte_of_ram == 1 v8
+2 tinyRam byte_of_ram == 2 v8
+3 tinyRam byte_of_ram == 3 v8
+
+listFold(f : a t -- a) : a List(t) -- a
+listFold(f) = nil? if(drop, uncons rotl swap f swap listFold(f))
+
+show_ram_byte : R8 -- Str
+show_ram_byte = getR8Int int->str "," <>
+
+showRam : Ram -- Str
+showRam = match(ram -> dip("") listFold(show_ram_byte <>))

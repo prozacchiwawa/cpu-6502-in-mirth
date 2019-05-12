@@ -1,0 +1,58 @@
+import base/nat
+import base/int
+import base/pos
+import divmod
+
+export r8
+  type R8
+  type Nat
+  type Pos
+  
+  v8 : Int -- R8
+  v8zero : R8
+  getR8Int : R8 -- Int
+  getR8Nat : R8 -- Nat
+  getR8Pos : R8 -- Pos
+
+  addR8 : Int R8 -- R8
+  incR8 : R8 -- R8
+  decR8 : R8 -- R8
+  addR8NC : R8 R8 -- R8
+  hexDigits : R8 -- Int Int
+  fromHexDigitsHL : Int Int -- R8  
+end
+
+# R8
+data R8
+  v8 : Int -- R8
+end
+
+v8zero : -- R8
+v8zero = 0 v8
+
+getR8Int : R8 -- Int
+getR8Int = match(v8 -> )
+
+getR8Pos : R8 -- Pos
+getR8Pos = match(v8 -> zpos)
+
+getR8Nat : R8 -- Nat
+getR8Nat = match(v8 -> znat)
+
+addR8 : Int R8 -- R8
+addR8 = getR8Int z+ mod256 v8
+
+incR8 : R8 -- R8
+incR8 = getR8Int 1 z+ mod256 v8
+
+decR8 : R8 -- R8
+decR8 = getR8Int 255 z+ mod256 v8
+
+addR8NC : R8 R8 -- R8
+addR8NC = dip(getR8Int) getR8Int z+ mod256 v8
+
+hexDigits : R8 -- Int Int
+hexDigits = getR8Int dup div16 mod16 dip(mod16)
+
+fromHexDigitsHL : Int Int -- R8
+fromHexDigitsHL = swap mod16 16 z* swap mod16 z+ v8

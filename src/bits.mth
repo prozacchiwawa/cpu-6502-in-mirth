@@ -1,0 +1,32 @@
+import base/int
+import divmod
+
+export bits
+  isSetBit : Int Int -- Bool
+  setBit : Int Int -- Int
+  dropBit : Int Int -- Int
+end
+
+isSetBit : Int Int -- Bool
+isSetBit = zpos z/ mod2 1 z=
+
+11 16 isSetBit == false
+11 8 isSetBit == true
+11 4 isSetBit == false
+11 2 isSetBit == true
+11 1 isSetBit == true
+
+80 128 isSetBit == false
+80 64 isSetBit == true
+80 32 isSetBit == false
+80 16 isSetBit == true
+80 8 isSetBit == false
+80 4 isSetBit == false
+80 2 isSetBit == false
+80 1 isSetBit == false
+
+setBit : Int Int -- Int
+setBit = dip(dup) dup dip(swap) isSetBit if(drop,z+)
+
+dropBit : Int Int -- Int
+dropBit = dip(dup) dup dip(swap) isSetBit if(z-,drop)

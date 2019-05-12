@@ -1,0 +1,16 @@
+export r16
+  type R16
+  v16 : Int -- R16
+  v16zero : R16
+  getR16Int : R16 -- Int
+end
+
+data R16
+  v16 : Int -- R16
+end
+
+v16zero : -- R16
+v16zero = 0 v16
+
+getR16Int : R16 -- Int
+getR16Int = match(v16 ->)

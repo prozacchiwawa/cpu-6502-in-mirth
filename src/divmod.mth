@@ -1,0 +1,24 @@
+import base/int
+
+export divmod
+  mod2 : Int -- Int
+  mod16 : Int -- Int
+  div16 : Int -- Int
+  mod256 : Int -- Int
+  mod65536 : Int -- Int
+end
+
+mod2 : Int -- Int
+mod2 = 2 zpos z% nint
+
+mod16 : Int -- Int
+mod16 = 16 zpos z% nint
+
+div16 : Int -- Int
+div16 = 16 zpos z/
+
+mod256 : Int -- Int
+mod256 = 256 zpos z% nint
+
+mod65536 : Int -- Int
+mod65536 = 65536 zpos z% nint

@@ -1,0 +1,47 @@
+
+import base/order
+import base/panic
+
+export base/maybe
+  type Comp
+  type Maybe(t)
+  none : Maybe(t)
+  some : t -- Maybe(t)
+  maybe (f: *a -- *b, g: *a t -- *b) : *a Maybe(t) -- *b
+  mmap  (f: a -- b) : Maybe(a) -- Maybe(b)
+  mfor  (f: *a t -- *a) : *a Maybe(t) -- *a
+  mthen (f: a -- Maybe(b)) : Maybe(a) -- Maybe(b)
+  mcmp  (f: a a -- Comp) : Maybe(a) Maybe(a) -- Comp
+
+  # panics on none
+  munwrap : Maybe(a) -- a
+end
+
+data Maybe(t)
+  none : Maybe(t)
+  some : t -- Maybe(t)
+end
+
+maybe(f,g) = match(none -> f, some -> g)
+mmap(f)    = maybe(none, f some)
+mfor(f)    = maybe(id, f)
+mthen(f)   = maybe(none, f)
+
+munwrap = maybe("munwrap on none" panic, id)
+
+mcmp(f) =
+  match(
+    none ->
+      match(
+        none -> EQ,
+        some -> drop GT
+      ),
+    some ->
+      swap match(
+        none -> drop LT,
+        some -> swap f
+      )
+  )
+
+
+

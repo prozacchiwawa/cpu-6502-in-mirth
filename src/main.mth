@@ -1,0 +1,53 @@
+import ram
+import cpu6502
+import r8
+import r16
+import lines
+import verifier
+
+testResetProg : M6502 M6502Effect Ram
+testResetProg = emptyM6502 noEff emptyRam untilBRK
+
+afterTestResetProgCPU : M6502
+afterTestResetProgCPU = testResetProg drop drop
+afterTestResetProgCPU == 0 v16 v8zero v8zero v8zero 0xff v8 emptyFlags fetch m6502
+
+testJSRRTSProg : Ram
+testJSRRTSProg = ↴(
+  emptyRam
+  0x0000 0x20 v8 rotl byte_to_ram
+  0x0001 0x08 v8 rotl byte_to_ram
+  0x0002 0x00 v8 rotl byte_to_ram
+  0x0008 0x60 v8 rotl byte_to_ram
+  )
+
+0x0001 testJSRRTSProg byte_of_ram getR8Int == 8
+
+testRunJSRRTSProg : M6502 M6502Effect Ram
+testRunJSRRTSProg = ↴(
+  emptyM6502 noEff testJSRRTSProg
+  runOneIter
+  runOneIter
+  runOneIter
+  runOneIter
+  runOneIter
+# runOneIter 
+# runOneIter
+  )
+  
+afterTestJSRRTSProgRam : Ram
+afterTestJSRRTSProgRam = testRunJSRRTSProg dip(drop drop)
+
+afterTestJSRRTSProgCPU : M6502
+afterTestJSRRTSProgCPU = testRunJSRRTSProg drop drop
+
+afterTestJSRRTSProgCPU == 3 v16 v8zero v8zero v8zero 0xff v8 emptyFlags fetch m6502
+0x1ff afterTestJSRRTSProgRam byte_of_ram == 0x00 v8
+0x1fe afterTestJSRRTSProgRam byte_of_ram == 0x02 v8
+
+data TestComputer
+  testComputer : M6502 Ram -- TestComputer
+end
+
+startTestComputer : -- TestComputer
+startTestComputer = emptyM6502 verifierProg testComputer
