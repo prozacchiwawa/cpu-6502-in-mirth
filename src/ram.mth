@@ -1,3 +1,4 @@
+import base/io
 import base/int
 import base/list
 import base/maybe
@@ -16,6 +17,7 @@ export ram
   byte_to_ram : Int R8 Ram -- Ram
 
   showRam : Ram -- Str
+  showRange : Int Int Ram -- Str
 end
 
 data Ram
@@ -46,7 +48,7 @@ byte_of_ram = byte_of_ram_prepare_check nil? if(drop v8zero, unsnoc drop)
 byte_to_ram : Int R8 Ram -- Ram
 
 break_into_lists : List(R8) Int -- List(R8) List(R8) List(R8)
-break_into_lists = znat break swap dip(1 znat break swap)
+break_into_lists = znat break 1 znat break
 
 consume_new_element : R8 List(R8) List(R8) List(R8) -- List(R8)
 consume_new_element = dip2(swap) dip(drop) snoc cat
@@ -61,6 +63,18 @@ tinyRam = nil 0 v8 cons 1 v8 cons 2 v8 cons 3 v8 cons ram
 2 tinyRam byte_of_ram == 2 v8
 3 tinyRam byte_of_ram == 3 v8
 
+tinyRam showRam print == id
+
+tramChanged : Ram
+tramChanged = 1 99 v8 tinyRam byte_to_ram
+
+0 tramChanged byte_of_ram == 0 v8
+1 tramChanged byte_of_ram == 99 v8
+2 tramChanged byte_of_ram == 2 v8
+3 tramChanged byte_of_ram == 3 v8
+
+tramChanged showRam print == id
+
 listFold(f : a t -- a) : a List(t) -- a
 listFold(f) = nil? if(drop, uncons rotl swap f swap listFold(f))
 
@@ -68,4 +82,7 @@ show_ram_byte : R8 -- Str
 show_ram_byte = getR8Int int->str "," <>
 
 showRam : Ram -- Str
-showRam = match(ram -> dip("") listFold(show_ram_byte <>))
+showRam = match(ram -> dip("") listFold(show_ram_byte swap <>))
+
+showRange : Int Int Ram -- Str
+showRange = match(ram -> rotl znat break swap drop swap znat break drop ram) showRam
