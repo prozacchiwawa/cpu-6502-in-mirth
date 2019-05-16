@@ -62,28 +62,28 @@ isDsDummy? : M6502DataSource -- M6502DataSource Bool
 isDsDummy? = dup match(ds_DUMMY -> true, _ -> drop false)
 
 isDsA? : M6502DataSource -- M6502DataSource Bool
-isDsA? = dup match(ds_DUMMY -> true, _ -> drop false)
+isDsA? = dup match(ds_A -> true, _ -> drop false)
 
 isDsX? : M6502DataSource -- M6502DataSource Bool
-isDsX? = dup match(ds_DUMMY -> true, _ -> drop false)
+isDsX? = dup match(ds_X -> true, _ -> drop false)
 
 isDsY? : M6502DataSource -- M6502DataSource Bool
-isDsY? = dup match(ds_DUMMY -> true, _ -> drop false)
+isDsY? = dup match(ds_Y -> true, _ -> drop false)
 
 isDsF? : M6502DataSource -- M6502DataSource Bool
-isDsF? = dup match(ds_DUMMY -> true, _ -> drop false)
+isDsF? = dup match(ds_F -> true, _ -> drop false)
 
 isDsS? : M6502DataSource -- M6502DataSource Bool
-isDsS? = dup match(ds_DUMMY -> true, _ -> drop false)
+isDsS? = dup match(ds_S -> true, _ -> drop false)
 
 isDsZp? : M6502DataSource -- M6502DataSource Bool
-isDsZp? = dup match(ds_DUMMY -> true, _ -> drop false)
+isDsZp? = dup match(ds_zp -> true, _ -> drop false)
 
 isDsZpX? : M6502DataSource -- M6502DataSource Bool
-isDsZpX? = dup match(ds_DUMMY -> true, _ -> drop false)
+isDsZpX? = dup match(ds_zpX -> true, _ -> drop false)
 
 isDsZpY? : M6502DataSource -- M6502DataSource Bool
-isDsZpY? = dup match(ds_DUMMY -> true, _ -> drop false)
+isDsZpY? = dup match(ds_zpY -> true, _ -> drop false)
 
 isDsIndexedIndirectX? : M6502DataSource -- M6502DataSource Bool
 isDsIndexedIndirectX? = dup match(ds_indexedIndirectX -> true, _ -> drop false)
@@ -92,19 +92,19 @@ isDsIndirectIndexedY? : M6502DataSource -- M6502DataSource Bool
 isDsIndirectIndexedY? = dup match(ds_indirectIndexedY -> true, _ -> drop false)
 
 isDsStack? : M6502DataSource -- M6502DataSource Bool
-isDsStack? = dup match(ds_DUMMY -> true, _ -> drop false)
+isDsStack? = dup match(ds_Stack -> true, _ -> drop false)
 
 isDsImm8? : M6502DataSource -- M6502DataSource Bool
-isDsImm8? = dup match(ds_DUMMY -> true, _ -> drop false)
+isDsImm8? = dup match(ds_Imm8 -> true, _ -> drop false)
 
 isDsAbs? : M6502DataSource -- M6502DataSource Bool
-isDsAbs? = dup match(ds_DUMMY -> true, _ -> drop false)
+isDsAbs? = dup match(ds_Abs -> true, _ -> drop false)
 
 isDsIndirectAbs? : M6502DataSource -- M6502DataSource Bool
 isDsIndirectAbs? = dup match(ds_indirectAbs -> true, _ -> drop false)
 
 isDsAbsX? : M6502DataSource -- M6502DataSource Bool
-isDsAbsX? = dup match(ds_DUMMY -> true, _ -> drop false)
+isDsAbsX? = dup match(ds_AbsX -> true, _ -> drop false)
 
 isDsAbsY? : M6502DataSource -- M6502DataSource Bool
-isDsAbsY? = dup match(ds_DUMMY -> true, _ -> drop false)
+isDsAbsY? = dup match(ds_AbsY -> true, _ -> drop false)
