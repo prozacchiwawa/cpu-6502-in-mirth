@@ -20,6 +20,8 @@ export r8
   addR8NC : R8 R8 -- R8
   hexDigits : R8 -- Int Int
   fromHexDigitsHL : Int Int -- R8  
+
+  r8DivInt : R8 Int -- R8 Int
 end
 
 # R8
@@ -56,3 +58,6 @@ hexDigits = getR8Int dup div16 mod16 dip(mod16)
 
 fromHexDigitsHL : Int Int -- R8
 fromHexDigitsHL = swap mod16 16 z* swap mod16 z+ v8
+
+r8DivInt : R8 Int -- R8 Int
+r8DivInt = dip(dup getR8Int) zpos z/

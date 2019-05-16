@@ -1,0 +1,103 @@
+import base/int
+import bits
+import r8
+import r8bits
+
+export cpu6502/flags
+  type M6502FlagBits
+  type R8
+  
+  flgBits : R8 -- M6502FlagBits
+  getFlgBitsR8 : M6502FlagBits -- R8
+
+  emptyFlags : M6502FlagBits
+
+  getNFlag : M6502FlagBits -- Bool
+  setNFlag : M6502FlagBits Bool -- M6502FlagBits
+
+  getVFlag : M6502FlagBits -- Bool
+  setVFlag : M6502FlagBits Bool -- M6502FlagBits
+
+  getBFlag : M6502FlagBits -- Bool
+  setBFlag : M6502FlagBits Bool -- M6502FlagBits
+
+  getDFlag : M6502FlagBits -- Bool
+  setDFlag : M6502FlagBits Bool -- M6502FlagBits
+
+  getIFlag : M6502FlagBits -- Bool
+  setIFlag : M6502FlagBits Bool -- M6502FlagBits
+
+  getZFlag : M6502FlagBits -- Bool
+  setZFlag : M6502FlagBits Bool -- M6502FlagBits
+
+  getCFlag : M6502FlagBits -- Bool
+  setCFlag : M6502FlagBits Bool -- M6502FlagBits
+
+  combineFlags : M6502FlagBits M6502FlagBits M6502FlagBits -- M6502FlagBits
+end
+
+data M6502FlagBits
+  flgBits : R8 -- M6502FlagBits
+end
+
+getFlgBitsR8 : M6502FlagBits -- R8
+getFlgBitsR8 = match(flgBits ->)
+
+getAnyFlag(v : Int) : M6502FlagBits -- Bool
+getAnyFlag(v) = match(flgBits -> getR8Int v isSetBit)
+
+setAnyFlag(v : Int) : M6502FlagBits Bool -- M6502FlagBits
+setAnyFlag(v) = swap match(flgBits -> swap if(v setBitR8,v dropBitR8) flgBits)
+
+emptyFlags : M6502FlagBits
+emptyFlags = v8zero flgBits
+
+getNFlag : M6502FlagBits -- Bool
+getNFlag = getAnyFlag(128)
+
+setNFlag : M6502FlagBits Bool -- M6502FlagBits
+setNFlag = setAnyFlag(128)
+
+getVFlag : M6502FlagBits -- Bool
+getVFlag = getAnyFlag(64)
+
+setVFlag : M6502FlagBits Bool -- M6502FlagBits
+setVFlag = setAnyFlag(64)
+
+getBFlag : M6502FlagBits -- Bool
+getBFlag = getAnyFlag(16)
+
+setBFlag : M6502FlagBits Bool -- M6502FlagBits
+setBFlag = setAnyFlag(16)
+
+getDFlag : M6502FlagBits -- Bool
+getDFlag = getAnyFlag(8)
+
+setDFlag : M6502FlagBits Bool -- M6502FlagBits
+setDFlag = setAnyFlag(8)
+
+getIFlag : M6502FlagBits -- Bool
+getIFlag = getAnyFlag(4)
+
+setIFlag : M6502FlagBits Bool -- M6502FlagBits
+setIFlag = setAnyFlag(4)
+
+getZFlag : M6502FlagBits -- Bool
+getZFlag = getAnyFlag(2)
+
+setZFlag : M6502FlagBits Bool -- M6502FlagBits
+setZFlag = setAnyFlag(2)
+
+getCFlag : M6502FlagBits -- Bool
+getCFlag = getAnyFlag(1)
+
+setCFlag : M6502FlagBits Bool -- M6502FlagBits
+setCFlag = setAnyFlag(1)
+
+8 v8 flgBits getDFlag == true
+
+combineOneFlag(getter : M6502FlagBits -- Bool, setter : M6502FlagBits Bool -- M6502FlagBits) : M6502FlagBits M6502FlagBits M6502FlagBits -- M6502FlagBits M6502FlagBits M6502FlagBits
+combineOneFlag(getter,setter) = dup getter if(dip(dup getter swap) dip2(setter),)
+
+combineFlags : M6502FlagBits M6502FlagBits M6502FlagBits -- M6502FlagBits
+combineFlags = combineOneFlag(getNFlag,setNFlag) combineOneFlag(getVFlag,setVFlag) combineOneFlag(getBFlag,setBFlag) combineOneFlag(getDFlag,setDFlag) combineOneFlag(getIFlag,setIFlag) combineOneFlag(getZFlag,setZFlag) combineOneFlag(getCFlag,setCFlag) drop drop

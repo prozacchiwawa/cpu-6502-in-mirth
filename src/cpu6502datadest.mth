@@ -1,0 +1,98 @@
+export cpu6502/datadest
+  type M6502DataDest
+
+  dd_DUMMY : -- M6502DataDest
+  dd_A : -- M6502DataDest
+  dd_X : -- M6502DataDest
+  dd_Y : -- M6502DataDest
+  dd_F : -- M6502DataDest
+  dd_S : -- M6502DataDest
+  dd_zp : -- M6502DataDest
+  dd_zpX : -- M6502DataDest
+  dd_zpY : -- M6502DataDest
+  dd_Abs : -- M6502DataDest
+  dd_AbsX : -- M6502DataDest
+  dd_AbsY : -- M6502DataDest
+  dd_Stack : -- M6502DataDest
+  dd_indexedIndirectX : -- M6502DataDest
+  dd_indirectIndexedY : -- M6502DataDest
+
+  isDdDummy? : M6502DataDest -- M6502DataDest Bool
+  isDdA? : M6502DataDest -- M6502DataDest Bool
+  isDdX? : M6502DataDest -- M6502DataDest Bool
+  isDdY? : M6502DataDest -- M6502DataDest Bool
+  isDdF? : M6502DataDest -- M6502DataDest Bool
+  isDdS? : M6502DataDest -- M6502DataDest Bool
+  isDdZp? : M6502DataDest -- M6502DataDest Bool
+  isDdZpX? : M6502DataDest -- M6502DataDest Bool
+  isDdZpY? : M6502DataDest -- M6502DataDest Bool
+  isDdAbs? : M6502DataDest -- M6502DataDest Bool
+  isDdAbsX? : M6502DataDest -- M6502DataDest Bool
+  isDdAbsY? : M6502DataDest -- M6502DataDest Bool
+  isDdStack? : M6502DataDest -- M6502DataDest Bool
+  isDdIndexedIndirectX? : M6502DataDest -- M6502DataDest Bool
+  isDdIndirectIndexedY? : M6502DataDest -- M6502DataDest Bool
+end
+
+data M6502DataDest
+  dd_DUMMY : -- M6502DataDest
+  dd_A : -- M6502DataDest
+  dd_X : -- M6502DataDest
+  dd_Y : -- M6502DataDest
+  dd_F : -- M6502DataDest
+  dd_S : -- M6502DataDest
+  dd_zp : -- M6502DataDest
+  dd_zpX : -- M6502DataDest
+  dd_zpY : -- M6502DataDest
+  dd_Abs : -- M6502DataDest
+  dd_AbsX : -- M6502DataDest
+  dd_AbsY : -- M6502DataDest
+  dd_Stack : -- M6502DataDest
+  dd_indexedIndirectX : -- M6502DataDest
+  dd_indirectIndexedY : -- M6502DataDest
+end
+
+isDdDummy? : M6502DataDest -- M6502DataDest Bool
+isDdDummy? = dup match(dd_DUMMY -> true, _ -> drop false)
+
+isDdA? : M6502DataDest -- M6502DataDest Bool
+isDdA? = dup match(dd_A -> true, _ -> drop false)
+
+isDdX? : M6502DataDest -- M6502DataDest Bool
+isDdX? = dup match(dd_X -> true, _ -> drop false)
+
+isDdY? : M6502DataDest -- M6502DataDest Bool
+isDdY? = dup match(dd_Y -> true, _ -> drop false)
+
+isDdF? : M6502DataDest -- M6502DataDest Bool
+isDdF? = dup match(dd_F -> true, _ -> drop false)
+
+isDdS? : M6502DataDest -- M6502DataDest Bool
+isDdS? = dup match(dd_S -> true, _ -> drop false)
+
+isDdZp? : M6502DataDest -- M6502DataDest Bool
+isDdZp? = dup match(dd_zp -> true, _ -> drop false)
+
+isDdZpX? : M6502DataDest -- M6502DataDest Bool
+isDdZpX? = dup match(dd_zpX -> true, _ -> drop false)
+
+isDdZpY? : M6502DataDest -- M6502DataDest Bool
+isDdZpY? = dup match(dd_zpY -> true, _ -> drop false)
+
+isDdAbs? : M6502DataDest -- M6502DataDest Bool
+isDdAbs? = dup match(dd_Abs -> true, _ -> drop false)
+
+isDdAbsX? : M6502DataDest -- M6502DataDest Bool
+isDdAbsX? = dup match(dd_AbsX -> true, _ -> drop false)
+
+isDdAbsY? : M6502DataDest -- M6502DataDest Bool
+isDdAbsY? = dup match(dd_AbsY -> true, _ -> drop false)
+
+isDdStack? : M6502DataDest -- M6502DataDest Bool
+isDdStack? = dup match(dd_Stack -> true, _ -> drop false)
+
+isDdIndexedIndirectX? : M6502DataDest -- M6502DataDest Bool
+isDdIndexedIndirectX? = dup match(dd_indexedIndirectX -> true, _ -> drop false)
+
+isDdIndirectIndexedY? : M6502DataDest -- M6502DataDest Bool
+isDdIndirectIndexedY? = dup match(dd_indirectIndexedY -> true, _ -> drop false)

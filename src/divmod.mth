@@ -6,6 +6,8 @@ export divmod
   div16 : Int -- Int
   mod256 : Int -- Int
   mod65536 : Int -- Int
+
+  modInt : Int Int -- Int
 end
 
 mod2 : Int -- Int
@@ -22,3 +24,6 @@ mod256 = 256 zpos z% nint
 
 mod65536 : Int -- Int
 mod65536 = 65536 zpos z% nint
+
+modInt : Int Int -- Int
+modInt = zpos z% nint

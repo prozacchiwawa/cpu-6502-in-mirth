@@ -1,0 +1,20 @@
+export cpu6502/interrupttype
+  type M6502InterruptType
+
+  irq : M6502InterruptType
+  brk : M6502InterruptType
+
+  isIrq : M6502InterruptType -- Bool
+  isBrk : M6502InterruptType -- Bool
+end
+
+data M6502InterruptType
+  irq : M6502InterruptType
+  brk : M6502InterruptType
+end
+
+isIrq : M6502InterruptType -- Bool
+isIrq = match(irq -> true, _ -> drop false)
+
+isBrk : M6502InterruptType -- Bool
+isBrk = match(brk -> true, _ -> drop false)
