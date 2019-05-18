@@ -5,7 +5,6 @@ import ram
 import cpu6502
 import r8
 import r16
-import lines
 import verifier
 import cpusinglestep
 import cputests

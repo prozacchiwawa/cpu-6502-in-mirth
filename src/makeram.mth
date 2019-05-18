@@ -1,13 +1,12 @@
 import base/list
 import r8
-import lines
 
 export makeram
   para : List(R8) R8 R8 R8 R8 R8 R8 R8 R8 R8 R8 R8 R8 R8 R8 R8 R8 -- List(R8)
 end
 
 para : List(R8) R8 R8 R8 R8 R8 R8 R8 R8 R8 R8 R8 R8 R8 R8 R8 R8 -- List(R8)
-para = ↴(
+para = $(
      nil
      snoc snoc snoc snoc snoc snoc snoc snoc
      snoc snoc snoc snoc snoc snoc snoc snoc

@@ -4,7 +4,6 @@ import cpu6502
 import cpu6502/flags
 import r8
 import r16
-import lines
 import makeram
 import ram
 import cpusinglestep
@@ -21,7 +20,7 @@ afterTestResetProgCPU == 0 v16 v8zero v8zero v8zero 0xff v8 emptyFlags fetch m65
 
 # Test that JSR and RTS are symmetric
 testJSRRTSProg : Ram
-testJSRRTSProg = ↴(
+testJSRRTSProg = $(
   emptyRam
   0x0000 0x20 v8 rotl byte_to_ram
   0x0001 0x08 v8 rotl byte_to_ram
@@ -46,9 +45,18 @@ afterTestJSRRTSProgCPU == 3 v16 v8zero v8zero v8zero 0xff v8 emptyFlags fetch m6
 0x1ff afterTestJSRRTSProgRam byte_of_ram == 0x00 v8
 0x1fe afterTestJSRRTSProgRam byte_of_ram == 0x02 v8
 
+# Thanks: http://6502.org/tutorials/decimal_mode.html
+# The general way I've been building these is:
+#
+# - Copy the example asm snip into https://skilldrick.github.io/easy6502/
+# - Assemble, Run
+# - Hexdump and copy the assembled program here
+# - Write an assertion that the CPU is in the proper state
+# - If there's memory writes required, assert those bytes show up too
+
 # Test that ADC works correctly
 testADCProg1 : Ram
-testADCProg1 = ↴(
+testADCProg1 = $(
   emptyRam
   0x0000 0x18 v8 rotl byte_to_ram
   0x0001 0xa9 v8 rotl byte_to_ram
@@ -59,9 +67,38 @@ testADCProg1 = ↴(
 
 # adcSteps : M6502 M6502Effect Ram +IO
 # adcSteps = emptyM6502 noEff testADCProg1 10 runSteps
-
-adcSteps drop drop drop == id
+# adcSteps drop drop drop == id
 
 afterTestADCProg1 : M6502 M6502Effect Ram
 afterTestADCProg1 = emptyM6502 noEff testADCProg1 untilBRK
 afterTestADCProg1 drop drop == 5 v16 2 v8 v8zero v8zero 0xff v8 emptyFlags fetch m6502
+
+testADCProg2 : Ram
+testADCProg2 = $(
+  emptyRam
+  0x0000 0xf8 v8 rotl byte_to_ram
+  0x0001 0xa9 v8 rotl byte_to_ram
+  0x0002 0x05 v8 rotl byte_to_ram
+  0x0003 0x18 v8 rotl byte_to_ram
+  0x0004 0x69 v8 rotl byte_to_ram
+  0x0005 0x05 v8 rotl byte_to_ram
+  )
+
+afterTestADCProg2 : M6502 M6502Effect Ram
+afterTestADCProg2 = emptyM6502 noEff testADCProg2 untilBRK
+afterTestADCProg2 drop drop == 6 v16 0x10 v8 v8zero v8zero 0xff v8 emptyFlags true setDFlag fetch m6502
+
+testADCProg3 : Ram
+testADCProg3 = $(
+  emptyRam
+  0x0000 0xd8 v8 rotl byte_to_ram
+  0x0001 0x38 v8 rotl byte_to_ram
+  0x0002 0xa9 v8 rotl byte_to_ram
+  0x0003 0x58 v8 rotl byte_to_ram
+  0x0004 0x69 v8 rotl byte_to_ram
+  0x0005 0x46 v8 rotl byte_to_ram
+  )
+
+afterTestADCProg3 : M6502 M6502Effect Ram
+afterTestADCProg3 = emptyM6502 noEff testADCProg3 untilBRK
+afterTestADCProg3 drop drop == 6 v16 0x9f v8 v8zero v8zero 0xff v8 emptyFlags true setNFlag true setVFlag fetch m6502

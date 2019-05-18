@@ -7,7 +7,6 @@ import r8
 import r16
 import bits
 import r8bits
-import lines
 import makeram
 import divmod
 import ram
@@ -1501,7 +1500,7 @@ cpuIsFetchingInst : M6502 -- Bool
 cpuIsFetchingInst = stateOf6502 match(fetch -> true, _ -> drop false)
 
 willExecuteBreakInstruction : M6502 M6502Effect Ram -- M6502 M6502Effect Ram Bool
-willExecuteBreakInstruction = ↴(
+willExecuteBreakInstruction = $(
   dup2 fetchingZero
   dip3(dup cpuIsFetchingInst)
   dip(rotl)

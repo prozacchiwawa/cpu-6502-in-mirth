@@ -1,6 +1,0 @@
-export lines
-  ↴(fn : *a -- *b) : *a -- *b
-end
-
-↴(fn : *a -- *b) : *a -- *b
-↴(fn) = fn
