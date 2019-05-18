@@ -7,6 +7,7 @@ import r16
 import lines
 import makeram
 import ram
+import cpusinglestep
 
 export cputests
 end
@@ -52,10 +53,15 @@ testADCProg1 = ↴(
   0x0000 0x18 v8 rotl byte_to_ram
   0x0001 0xa9 v8 rotl byte_to_ram
   0x0002 0x01 v8 rotl byte_to_ram
-  0x0008 0x69 v8 rotl byte_to_ram
-  0x0008 0x01 v8 rotl byte_to_ram
+  0x0003 0x69 v8 rotl byte_to_ram
+  0x0004 0x01 v8 rotl byte_to_ram
   )
+
+# adcSteps : M6502 M6502Effect Ram +IO
+# adcSteps = emptyM6502 noEff testADCProg1 10 runSteps
+
+adcSteps drop drop drop == id
 
 afterTestADCProg1 : M6502 M6502Effect Ram
 afterTestADCProg1 = emptyM6502 noEff testADCProg1 untilBRK
-afterTestADCProg1 drop drop == 6 v16 2 v8 v8zero v8zero 0xff v8 emptyFlags fetch m6502
+afterTestADCProg1 drop drop == 5 v16 2 v8 v8zero v8zero 0xff v8 emptyFlags fetch m6502
