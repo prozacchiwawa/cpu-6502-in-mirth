@@ -184,43 +184,49 @@ end
 v8eq : R8 Int -- Bool
 v8eq = swap getR8Int z=
 
-r8Matches : R8 Int Int Int -- R8 Bool
-r8Matches = dip(dip(r8DivInt) modInt) z=
+r8Matches?(divisor : Int,modulo : Int,equals : Int) : R8 -- R8 Bool
+r8Matches?(divisor,modulo,equals) = divisor modulo equals dip(dip(r8DivInt) modInt) z=
 
 categorizeInstruction : R8 -- R8 M6502InstCategory
-categorizeInstruction = 1 256 0x20 r8Matches if(jsrI,
-  1 256 0x40 r8Matches if(rtiI,
-  1 256 0x60 r8Matches if(rtsI,
-  1 256 0x08 r8Matches if(phxI,    
-  1 256 0x48 r8Matches if(phxI,    
-  1 256 0x28 r8Matches if(plxI,
-  1 256 0x68 r8Matches if(plxI,
-  1 256 0x88 r8Matches if(deyI,
-  1 256 0xa8 r8Matches if(tayI,
-  1 256 0xc8 r8Matches if(inyI,
-  1 256 0xe8 r8Matches if(inxI,
-  1 256 0x8a r8Matches if(txaI,
-  1 256 0x9a r8Matches if(txsI,
-  1 256 0xaa r8Matches if(taxI,
-  1 256 0xba r8Matches if(tsxI,
-  1 256 0xca r8Matches if(dexI,
-  1 256 0xea r8Matches if(nopI,
-  1 256 0xcb r8Matches if(waiI,
-  1 256 0    r8Matches if(brkI,
-  1 32  24   r8Matches if(flgI,
-  1 32  16   r8Matches if(cbranch,
-  1 4   2    r8Matches if(g2,
-  1 4   1    r8Matches if(g1,
-  1 4   0    r8Matches if(g0,nopI))))))))))))))))))))))))
+categorizeInstruction = cond(
+  r8Matches?(1,256,0x20) -> jsrI,
+  r8Matches?(1,256,0x40) -> rtiI,
+  r8Matches?(1,256,0x60) -> rtsI,
+  r8Matches?(1,256,0x08) -> phxI,    
+  r8Matches?(1,256,0x48) -> phxI,    
+  r8Matches?(1,256,0x28) -> plxI,
+  r8Matches?(1,256,0x68) -> plxI,
+  r8Matches?(1,256,0x88) -> deyI,
+  r8Matches?(1,256,0xa8) -> tayI,
+  r8Matches?(1,256,0xc8) -> inyI,
+  r8Matches?(1,256,0xe8) -> inxI,
+  r8Matches?(1,256,0x8a) -> txaI,
+  r8Matches?(1,256,0x9a) -> txsI,
+  r8Matches?(1,256,0xaa) -> taxI,
+  r8Matches?(1,256,0xba) -> tsxI,
+  r8Matches?(1,256,0xca) -> dexI,
+  r8Matches?(1,256,0xea) -> nopI,
+  r8Matches?(1,256,0xcb) -> waiI,
+  r8Matches?(1,256,0   ) -> brkI,
+  r8Matches?(1,32 ,24  ) -> flgI,
+  r8Matches?(1,32 ,16  ) -> cbranch,
+  r8Matches?(1,4  ,2   ) -> g2,
+  r8Matches?(1,4  ,1   ) -> g1,
+  r8Matches?(1,4  ,0   ) -> g0,
+  nopI
+  )
 
 g1Opcode : R8 -- R8 M6502InstLabel
-g1Opcode = 32 8 0 r8Matches if(ORA,
-  32 8 1 r8Matches if(AND,
-  32 8 2 r8Matches if(EOR,
-  32 8 3 r8Matches if(ADC,
-  32 8 4 r8Matches if(STx,
-  32 8 5 r8Matches if(LDx,
-  32 8 6 r8Matches if(CMP, SBC)))))))
+g1Opcode = cond(
+  r8Matches?(32,8,0) -> ORA,
+  r8Matches?(32,8,1) -> AND,
+  r8Matches?(32,8,2) -> EOR,
+  r8Matches?(32,8,3) -> ADC,
+  r8Matches?(32,8,4) -> STx,
+  r8Matches?(32,8,5) -> LDx,
+  r8Matches?(32,8,6) -> CMP,
+  SBC
+  )
 
 matchesI : Int Int -- Bool Int
 matchesI = dip(dup) z= swap
@@ -232,25 +238,31 @@ isLDAInstruction : R8 -- Bool
 isLDAInstruction = getR8Int 0xa9 matchesI 0xa5 matchesI 0xb5 matchesI 0xad matchesI 0xbd matchesI 0xb9 matchesI drop or or or or or
 
 g1SourceNormal : R8 -- R8 M6502DataSource
-g1SourceNormal = 4 8 0 r8Matches if(ds_indexedIndirectX,
-    4 8 1 r8Matches if(ds_zp,
-    4 8 2 r8Matches if(ds_Imm8,
-    4 8 3 r8Matches if(ds_Abs,
-    4 8 4 r8Matches if(ds_indirectIndexedY,
-    4 8 5 r8Matches if(ds_zpX,
-    4 8 6 r8Matches if(ds_AbsY,ds_AbsX)))))))
+g1SourceNormal = cond(
+  r8Matches?(4,8,0) -> ds_indexedIndirectX,
+  r8Matches?(4,8,1) -> ds_zp,
+  r8Matches?(4,8,2) -> ds_Imm8,
+  r8Matches?(4,8,3) -> ds_Abs,
+  r8Matches?(4,8,4) -> ds_indirectIndexedY,
+  r8Matches?(4,8,5) -> ds_zpX,
+  r8Matches?(4,8,6) -> ds_AbsY,
+  ds_AbsX
+  )
 
 g1Source : R8 -- R8 M6502DataSource
 g1Source = dup isSTAInstruction if(ds_A, g1SourceNormal)
 
 g1DestNormal : R8 -- R8 M6502DataDest
-g1DestNormal = 4 8 0 r8Matches if(dd_indexedIndirectX,
-    4 8 1 r8Matches if(dd_zp,
-    4 8 2 r8Matches if(dd_DUMMY,
-    4 8 3 r8Matches if(dd_Abs, 
-    4 8 4 r8Matches if(dd_indirectIndexedY,
-    4 8 5 r8Matches if(dd_zpX,
-    4 8 6 r8Matches if(dd_AbsY,dd_AbsX)))))))
+g1DestNormal = cond(
+  r8Matches?(4,8,0) -> dd_indexedIndirectX,
+  r8Matches?(4,8,1) -> dd_zp,
+  r8Matches?(4,8,2) -> dd_DUMMY,
+  r8Matches?(4,8,3) -> dd_Abs,
+  r8Matches?(4,8,4) -> dd_indirectIndexedY,
+  r8Matches?(4,8,5) -> dd_zpX,
+  r8Matches?(4,8,6) -> dd_AbsY,
+  dd_AbsX
+  )
 
 g1Dest : R8 -- R8 M6502DataDest
 g1Dest = dup isSTAInstruction if(g1DestNormal, dd_A)
@@ -287,13 +299,16 @@ decodeG1Inst = g1Opcode swap g1Source swap g1Dest swap drop di
 0xb1 v8 decodeG1Inst == LDx ds_indirectIndexedY dd_A di
 
 g2Opcode : R8 -- R8 M6502InstLabel
-g2Opcode = 32 8 0 r8Matches if(ASL,
-  32 8 1 r8Matches if(ROL,
-  32 8 2 r8Matches if(LSR,
-  32 8 3 r8Matches if(ROR,
-  32 8 4 r8Matches if(STx,
-  32 8 5 r8Matches if(LDx,
-  32 8 6 r8Matches if(DEx, INx)))))))
+g2Opcode = cond(
+  r8Matches?(32,8,0) -> ASL,
+  r8Matches?(32,8,1) -> ROL,
+  r8Matches?(32,8,2) -> LSR,
+  r8Matches?(32,8,3) -> ROR,
+  r8Matches?(32,8,4) -> STx,
+  r8Matches?(32,8,5) -> LDx,
+  r8Matches?(32,8,6) -> DEx,
+  INx
+  )
 
 isSTXInstruction : R8 -- Bool
 isSTXInstruction = getR8Int 0x86 matchesI 0x96 matchesI 0x8e matchesI drop or or
@@ -305,25 +320,31 @@ useYRegister : R8 -- Bool
 useYRegister = dup isSTXInstruction swap isLDXInstruction or
   
 g2SourceNormal : R8 -- R8 M6502DataSource
-g2SourceNormal = 4 8 0 r8Matches if(ds_Imm8,
-    4 8 1 r8Matches if(ds_zp,
-    4 8 2 r8Matches if(ds_A,
-    4 8 3 r8Matches if(ds_Abs,
-    4 8 4 r8Matches if(ds_DUMMY,
-    4 8 5 r8Matches if(dup useYRegister if(ds_zpY,ds_zpX),
-    4 8 6 r8Matches if(ds_DUMMY,dup useYRegister if(ds_AbsY,ds_AbsX))))))))
+g2SourceNormal = cond(
+  r8Matches?(4,8,0) -> ds_Imm8,
+  r8Matches?(4,8,1) -> ds_zp,
+  r8Matches?(4,8,2) -> ds_A,
+  r8Matches?(4,8,3) -> ds_Abs,
+  r8Matches?(4,8,4) -> ds_DUMMY,
+  r8Matches?(4,8,5) -> dup useYRegister if(ds_zpY,ds_zpX),
+  r8Matches?(4,8,6) -> ds_DUMMY,
+  dup useYRegister if(ds_AbsY,ds_AbsX)
+  )
 
 g2Source : R8 -- R8 M6502DataSource
 g2Source = dup isSTXInstruction if(ds_X, g2SourceNormal)
 
 g2DestNormal : R8 -- R8 M6502DataDest
-g2DestNormal = 4 8 0 r8Matches if(dd_DUMMY,
-    4 8 1 r8Matches if(dd_zp,
-    4 8 2 r8Matches if(dd_A,
-    4 8 3 r8Matches if(dd_Abs, 
-    4 8 4 r8Matches if(dd_DUMMY,
-    4 8 5 r8Matches if(dup useYRegister if(dd_zpY,dd_zpX),
-    4 8 6 r8Matches if(dd_DUMMY,dup useYRegister if(dd_AbsY,dd_AbsX))))))))
+g2DestNormal = cond(
+  r8Matches?(4,8,0) -> dd_DUMMY,
+  r8Matches?(4,8,1) -> dd_zp,
+  r8Matches?(4,8,2) -> dd_A,
+  r8Matches?(4,8,3) -> dd_Abs,
+  r8Matches?(4,8,4) -> dd_DUMMY,
+  r8Matches?(4,8,5) -> dup useYRegister if(dd_zpY,dd_zpX),
+  r8Matches?(4,8,6) -> dd_DUMMY,
+  dup useYRegister if(dd_AbsY,dd_AbsX)
+  )
 
 g2Dest : R8 -- R8 M6502DataDest
 g2Dest = dup isLDXInstruction if(dd_X, g2DestNormal)
@@ -351,39 +372,48 @@ decodeG2Inst = g2Opcode swap g2Source swap g2Dest swap drop di
 0x96 v8 decodeG2Inst == STx ds_X dd_zpY di
 
 g0Opcode : R8 -- R8 M6502InstLabel
-g0Opcode = 32 8 0 r8Matches if(NOP,
-  32 8 1 r8Matches if(BIT,
-  32 8 2 r8Matches if(JMP,
-  32 8 3 r8Matches if(JMP,
-  32 8 4 r8Matches if(STx,
-  32 8 5 r8Matches if(LDx,
-  32 8 6 r8Matches if(CPY, CPX)))))))
+g0Opcode = cond(
+  r8Matches?(32,8,0) -> NOP,
+  r8Matches?(32,8,1) -> BIT,
+  r8Matches?(32,8,2) -> JMP,
+  r8Matches?(32,8,3) -> JMP,
+  r8Matches?(32,8,4) -> STx,
+  r8Matches?(32,8,5) -> LDx,
+  r8Matches?(32,8,6) -> CPY,
+  CPX
+  )
 
 g0Source : R8 -- R8 M6502DataSource
-g0Source = 32 8 4 r8Matches if(ds_Y,
-    32 8 3 r8Matches if(ds_indirectAbs,
-    4 8 0 r8Matches if(ds_Imm8,
-    4 8 1 r8Matches if(ds_zp,
-    4 8 2 r8Matches if(ds_DUMMY,
-    4 8 3 r8Matches if(ds_Abs,
-    4 8 4 r8Matches if(ds_DUMMY,
-    4 8 5 r8Matches if(ds_zpX,
-    4 8 6 r8Matches if(ds_DUMMY,ds_AbsX)))))))))
+g0Source = cond(
+  r8Matches?(32,8,4) -> ds_Y,
+  r8Matches?(32,8,3) -> ds_indirectAbs,
+  r8Matches?(4,8,0) -> ds_Imm8,
+  r8Matches?(4,8,1) -> ds_zp,
+  r8Matches?(4,8,2) -> ds_DUMMY,
+  r8Matches?(4,8,3) -> ds_Abs,
+  r8Matches?(4,8,4) -> ds_DUMMY,
+  r8Matches?(4,8,5) -> ds_zpX,
+  r8Matches?(4,8,6) -> ds_DUMMY,
+  ds_AbsX
+  )
 
 g0Dest : R8 -- R8 M6502DataDest
-g0Dest = 32 8 1 r8Matches if(dd_DUMMY,
-    32 8 2 r8Matches if(dd_DUMMY,
-    32 8 3 r8Matches if(dd_DUMMY,
-    32 8 5 r8Matches if(dd_Y,
-    32 8 6 r8Matches if(dd_DUMMY,
-    32 8 7 r8Matches if(dd_DUMMY,
-    4 8 0 r8Matches if(dd_DUMMY,
-    4 8 1 r8Matches if(dd_zp,
-    4 8 2 r8Matches if(dd_A,
-    4 8 3 r8Matches if(dd_Abs, 
-    4 8 4 r8Matches if(dd_DUMMY,
-    4 8 5 r8Matches if(dd_zpX,
-    4 8 6 r8Matches if(dd_DUMMY,dd_AbsX)))))))))))))
+g0Dest = cond(
+  r8Matches?(32,8,1) -> dd_DUMMY,
+  r8Matches?(32,8,2) -> dd_DUMMY,
+  r8Matches?(32,8,3) -> dd_DUMMY,
+  r8Matches?(32,8,5) -> dd_Y,
+  r8Matches?(32,8,6) -> dd_DUMMY,
+  r8Matches?(32,8,7) -> dd_DUMMY,
+  r8Matches?(4,8,0) -> dd_DUMMY,
+  r8Matches?(4,8,1) -> dd_zp,
+  r8Matches?(4,8,2) -> dd_A,
+  r8Matches?(4,8,3) -> dd_Abs,
+  r8Matches?(4,8,4) -> dd_DUMMY,
+  r8Matches?(4,8,5) -> dd_zpX,
+  r8Matches?(4,8,6) -> dd_DUMMY,
+  dd_AbsX
+  )
 
 decodeG0Inst : R8 -- M6502Instruction
 decodeG0Inst = g0Opcode swap g0Source swap g0Dest swap drop di
@@ -408,13 +438,16 @@ decodeG0Inst = g0Opcode swap g0Source swap g0Dest swap drop di
 0xbc v8 decodeG0Inst == LDx ds_AbsX dd_Y di
 
 decodeCBranchOp : R8 -- R8 M6502InstLabel
-decodeCBranchOp = 1 256 0x10 r8Matches if(0 false Bxx,
-    1 256 0x30 r8Matches if(0 true Bxx,
-    1 256 0x50 r8Matches if(1 false Bxx,
-    1 256 0x70 r8Matches if(1 true Bxx,
-    1 256 0x90 r8Matches if(2 false Bxx,
-    1 256 0xb0 r8Matches if(2 true Bxx,
-    1 256 0xd0 r8Matches if(3 false Bxx,3 true Bxx)))))))
+decodeCBranchOp = cond(
+  r8Matches?(1,256,0x10) -> 0 false Bxx,
+  r8Matches?(1,256,0x30) -> 0 true Bxx,
+  r8Matches?(1,256,0x50) -> 1 false Bxx,
+  r8Matches?(1,256,0x70) -> 1 true Bxx,
+  r8Matches?(1,256,0x90) -> 2 false Bxx,
+  r8Matches?(1,256,0xb0) -> 2 true Bxx,
+  r8Matches?(1,256,0xd0) -> 3 false Bxx,
+  3 true Bxx
+  )
 
 decodeCBranchInst : R8 -- M6502Instruction
 decodeCBranchInst = decodeCBranchOp swap drop ds_DUMMY dd_DUMMY di
@@ -422,13 +455,16 @@ decodeCBranchInst = decodeCBranchOp swap drop ds_DUMMY dd_DUMMY di
 0xd0 v8 decodeCBranchInst == 3 false Bxx ds_DUMMY dd_DUMMY di
 
 decodeFlgInst : R8 -- M6502Instruction
-decodeFlgInst = 1 256 0x98 r8Matches if(Txy ds_Y dd_A di,
-    1 256 0x18 r8Matches if(carry CLx ds_F dd_F di,
-    1 256 0x38 r8Matches if(carry SEx ds_F dd_F di,
-    1 256 0x58 r8Matches if(interrupt CLx ds_F dd_F di,
-    1 256 0x78 r8Matches if(interrupt SEx ds_F dd_F di,
-    1 256 0xb8 r8Matches if(overflow CLx ds_F dd_F di,
-    1 256 0xd8 r8Matches if(decimal CLx ds_F dd_F di,decimal SEx ds_F dd_F di))))))) swap drop
+decodeFlgInst = cond(
+  r8Matches?(1,256,0x98) -> Txy ds_Y dd_A di,
+  r8Matches?(1,256,0x18) -> carry CLx ds_F dd_F di,
+  r8Matches?(1,256,0x38) -> carry SEx ds_F dd_F di,
+  r8Matches?(1,256,0x58) -> interrupt CLx ds_F dd_F di,
+  r8Matches?(1,256,0x78) -> interrupt SEx ds_F dd_F di,
+  r8Matches?(1,256,0xb8) -> overflow CLx ds_F dd_F di,
+  r8Matches?(1,256,0xd8) -> decimal CLx ds_F dd_F di,
+  decimal SEx ds_F dd_F di
+  ) swap drop
 
 decodeInstruction : R8 M6502InstCategory -- M6502Instruction
 decodeInstruction = match(g0 -> decodeG0Inst,
