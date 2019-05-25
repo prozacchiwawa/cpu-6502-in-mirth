@@ -996,7 +996,7 @@ leaveSetNZFlags : R8 M6502 -- R8 M6502
 leaveSetNZFlags = dip(dup) consumeSetNZFlags
 
 setRegister(setter : R8 M6502 -- M6502) : R8 M6502 -- M6502 M6502Effect
-setRegister(setter) = setter fetchPCEffect
+setRegister(setter) = dip(getR8Int 256 modInt v8) setter fetchPCEffect
 
 finishZpxWrite : M6502 Int R8 M6502ZPRegister -- M6502 M6502Effect
 finishZpxWrite = fetchZPByteDest nextState6502 dup getPC6502 getR16Int 1 z- fetchByte
@@ -1252,6 +1252,9 @@ adcBin = dip(adcBinDoAddition) writeOutput
 adcInst : R8 M6502 M6502DataSource M6502DataDest -- M6502 M6502Effect
 adcInst = adjustPCAfterInsn(1) swap drop dip(dup getFB6502 getDFlag) swap if(adcDec,adcBin)
 
+sbcInst : R8 M6502 M6502DataSource M6502DataDest -- M6502 M6502Effect
+sbcInst = dip3(getR8Int 255 swap z- signedToR8 v8) adcInst
+
 0x10 v8 0x33 v8 emptyM6502 setA6502 ds_X dd_A adcInst drop getA6502 == 0x43 v8
 0x01 v8 0xff v8 emptyM6502 setA6502 ds_X dd_A adcInst drop getF6502 == 0x01 v8
 0x7f v8 0x01 v8 emptyM6502 setA6502 ds_X dd_A adcInst drop getF6502 == 0xc0 v8
@@ -1344,7 +1347,7 @@ doInstructionBody = match(ADC -> adcInst,
   ROR -> nopInst,
   RTI -> nopInst,
   RTS -> doRTS,
-  SBC -> nopInst,
+  SBC -> sbcInst,
   SEx -> setFlag,
   STx -> store,
   Txy -> transfer,

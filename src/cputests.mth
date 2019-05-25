@@ -102,3 +102,31 @@ testADCProg3 = $(
 afterTestADCProg3 : M6502 M6502Effect Ram
 afterTestADCProg3 = emptyM6502 noEff testADCProg3 untilBRK
 afterTestADCProg3 drop drop == 6 v16 0x9f v8 v8zero v8zero 0xff v8 emptyFlags true setNFlag true setVFlag fetch m6502
+
+testSBCProg1 : Ram
+testSBCProg1 = $(
+  emptyRam
+  0x0000 0x38 v8 rotl byte_to_ram
+  0x0001 0xa9 v8 rotl byte_to_ram
+  0x0002 0x00 v8 rotl byte_to_ram
+  0x0003 0xe9 v8 rotl byte_to_ram
+  0x0004 0x01 v8 rotl byte_to_ram
+  )
+
+afterTestSBCProg1 : M6502 M6502Effect Ram
+afterTestSBCProg1 = emptyM6502 noEff testSBCProg1 untilBRK
+afterTestSBCProg1 drop drop == 5 v16 0xff v8 v8zero v8zero 0xff v8 emptyFlags true setNFlag fetch m6502
+
+testSBCProg2 : Ram
+testSBCProg2 = $(
+  emptyRam
+  0x0000 0x38 v8 rotl byte_to_ram
+  0x0001 0xa9 v8 rotl byte_to_ram
+  0x0002 0x80 v8 rotl byte_to_ram
+  0x0003 0xe9 v8 rotl byte_to_ram
+  0x0004 0x01 v8 rotl byte_to_ram
+  )
+
+afterTestSBCProg2 : M6502 M6502Effect Ram
+afterTestSBCProg2 = emptyM6502 noEff testSBCProg2 untilBRK
+afterTestSBCProg2 drop drop == 5 v16 0x7f v8 v8zero v8zero 0xff v8 emptyFlags true setVFlag true setCFlag fetch m6502
