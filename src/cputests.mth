@@ -130,3 +130,45 @@ testSBCProg2 = $(
 afterTestSBCProg2 : M6502 M6502Effect Ram
 afterTestSBCProg2 = emptyM6502 noEff testSBCProg2 untilBRK
 afterTestSBCProg2 drop drop == 5 v16 0x7f v8 v8zero v8zero 0xff v8 emptyFlags true setVFlag true setCFlag fetch m6502
+
+testSECProg : Ram
+testSECProg = $(
+  emptyRam
+  0x0000 0x38 v8 rotl byte_to_ram
+  )
+
+afterTestSECProg : M6502 M6502Effect Ram
+afterTestSECProg = emptyM6502 noEff testSECProg untilBRK
+afterTestSECProg drop drop == 1 v16 v8zero v8zero v8zero 0xff v8 emptyFlags true setCFlag fetch m6502
+
+testJMPProg : Ram
+testJMPProg = $(
+  emptyRam
+  0x0000 0x4c v8 rotl byte_to_ram
+  0x0001 0x04 v8 rotl byte_to_ram
+  0x0002 0x06 v8 rotl byte_to_ram
+  0x0003 0x38 v8 rotl byte_to_ram
+  0x0004 0x00 v8 rotl byte_to_ram
+  )
+
+afterTestJMPProg : M6502 M6502Effect Ram
+afterTestJMPProg = emptyM6502 noEff testJMPProg untilBRK
+afterTestJMPProg drop drop == 0x0604 v16 v8zero v8zero v8zero 0xff v8 emptyFlags fetch m6502
+
+testIndirectJMPProg : Ram
+testIndirectJMPProg = $(
+  emptyRam
+  0x0000 0xa9 v8 rotl byte_to_ram
+  0x0001 0x08 v8 rotl byte_to_ram
+  0x0002 0x85 v8 rotl byte_to_ram
+  0x0003 0x50 v8 rotl byte_to_ram
+  0x0004 0x6c v8 rotl byte_to_ram
+  0x0005 0x50 v8 rotl byte_to_ram
+  0x0006 0x00 v8 rotl byte_to_ram
+  0x0007 0x38 v8 rotl byte_to_ram
+  0x0008 0x78 v8 rotl byte_to_ram
+  )
+
+afterTestIndirectJMPProg : M6502 M6502Effect Ram
+afterTestIndirectJMPProg = emptyM6502 noEff testIndirectJMPProg untilBRK
+afterTestIndirectJMPProg drop drop == 0x09 v16 8 v8 v8zero v8zero 0xff v8 emptyFlags true setIFlag fetch m6502
