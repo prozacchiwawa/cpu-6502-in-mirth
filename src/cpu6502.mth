@@ -762,6 +762,8 @@ data M6502State
   rtsPopMsb : M6502State
   rtsPopLsb : R8 -- M6502State
 
+  rtiPopFlags : M6502State
+
   prefetch : M6502State
 end
 
@@ -1095,10 +1097,10 @@ popInst = adjustPCAfterInsn(1) dip(drop swap drop incSP6502) dip(PLf ds_Stack) d
 nvcFlags : M6502FlagBits
 nvcFlags = emptyFlags true setNFlag true setVFlag true setCFlag
 
-adcDec : R8 M6502 M6502DataDest -- M6502 M6502Effect
+adcDec(getReg : M6502 -- R8) : R8 M6502 M6502DataDest -- M6502 M6502Effect
 
-adcDecPrepare : R8 M6502 M6502DataDest -- R8 R8 M6502 M6502DataDest
-adcDecPrepare = dip(dup getA6502 swap)
+adcDecPrepare(getReg : M6502 -- R8) : R8 M6502 M6502DataDest -- R8 R8 M6502 M6502DataDest
+adcDecPrepare(getReg) = dip(dup getReg swap)
 
 addDecGetCarryFlag : M6502 -- Bool M6502
 addDecGetCarryFlag = dup getFB6502 getCFlag swap
@@ -1123,9 +1125,9 @@ adcDecSetZFlagFinish = dup getFB6502 swap dip(swap setZFlag) setFB6502
 adcDecSetZFlag : R8 M6502 -- R8 M6502
 adcDecSetZFlag = dip(adcDecArrangeForZFlagSet) adcDecSetZFlagFinish
 
-adcDec = adcDecPrepare adcDecPerform dip(adcDecSetZFlag) writeOutput
+adcDec(getReg) = adcDecPrepare(getReg) adcDecPerform dip(adcDecSetZFlag) writeOutput
 
-0x10 v8 0x33 v8 emptyM6502 setA6502 emptyFlags true setDFlag swap setFB6502 dd_A adcDec drop getA6502 == 0x43 v8
+0x10 v8 0x33 v8 emptyM6502 setA6502 emptyFlags true setDFlag swap setFB6502 dd_A adcDec(getA6502) drop getA6502 == 0x43 v8
 
 toSignedR8 : Int -- Int
 toSignedR8 = 127 dup2 z> swap drop if(256 z-,)
@@ -1145,10 +1147,10 @@ signedToR8 = 0 dup2 z< swap drop if(256 z+ signedToR8,256 modInt)
 -127 signedToR8 == 129
 
 # Thanks: http://www.righto.com/2012/12/the-6502-overflow-flag-explained.html
-adcBin : R8 M6502 M6502DataDest -- M6502 M6502Effect
+adcBin(getReg : M6502 -- R8) : R8 M6502 M6502DataDest -- M6502 M6502Effect
 
-adcBinGetValuesToAdd : R8 M6502 -- M6502 Int Int Int
-adcBinGetValuesToAdd = dup getA6502 getR8Int dip(dup getF6502 getR8Int 2 modInt dip(swap getR8Int))
+adcBinGetValuesToAdd(getReg : M6502 -- R8) : R8 M6502 -- M6502 Int Int Int
+adcBinGetValuesToAdd(getReg) = dup getReg getR8Int dip(dup getF6502 getR8Int 2 modInt dip(swap getR8Int))
 
 adcBinCreateAddValues : M6502 Int Int Int -- M6502 Int Int
 adcBinCreateAddValues = dip(z+)
@@ -1204,9 +1206,9 @@ adcBinTxlateFlags = cond(
 false false false adcBinTxlateFlags == false false false
 false false true  adcBinTxlateFlags == false true  true
 
-doADCBody : R8 M6502 -- R8 M6502 R8 Bool Bool Bool
-doADCBody = $(
-  adcBinGetValuesToAdd
+doADCBody(getReg : M6502 -- R8) : R8 M6502 -- R8 M6502 R8 Bool Bool Bool
+doADCBody(getReg) = $(
+  adcBinGetValuesToAdd(getReg)
   adcBinCreateAddValues
   adcBinExtractC6
   dip(adcBinExtractM7)
@@ -1216,28 +1218,28 @@ doADCBody = $(
   )
 
 # http://www.righto.com/2012/12/the-6502-overflow-flag-explained.html
-doTestADC : Int Int -- Int Bool Bool Bool
-doTestADC = $(
+doTestADC(getReg : M6502 -- R8) : Int Int -- Int Bool Bool Bool
+doTestADC(getReg) = $(
   dip(signedToR8 v8)
   signedToR8 v8
   emptyM6502 setA6502
-  doADCBody
+  doADCBody(getA6502)
   dip3(drop drop getR8Int) # M7 N7 C6
   )
 
 # Working
-0x50 0x10 doTestADC == 0x60  false false false  # 0
-0x50 0x50 doTestADC == 0xa0  false false true   # 1
-0x50 0x90 doTestADC == 0xe0  false true  false  # 2
-0x50 0xd0 doTestADC == 0x120 false true  true   # 3
-0xd0 0x10 doTestADC == 0xe0  true  false false  # 4
-0xd0 0x50 doTestADC == 0x120 true  false true   # 5
-0xd0 0x90 doTestADC == 0x160 true  true  false  # 6
-0xd0 0xd0 doTestADC == 0x1a0 true  true  true   # 7
+0x50 0x10 doTestADC(getA6502) == 0x60  false false false  # 0
+0x50 0x50 doTestADC(getA6502) == 0xa0  false false true   # 1
+0x50 0x90 doTestADC(getA6502) == 0xe0  false true  false  # 2
+0x50 0xd0 doTestADC(getA6502) == 0x120 false true  true   # 3
+0xd0 0x10 doTestADC(getA6502) == 0xe0  true  false false  # 4
+0xd0 0x50 doTestADC(getA6502) == 0x120 true  false true   # 5
+0xd0 0x90 doTestADC(getA6502) == 0x160 true  true  false  # 6
+0xd0 0xd0 doTestADC(getA6502) == 0x1a0 true  true  true   # 7
 
-adcBinDoAddition : R8 M6502 -- R8 M6502
-adcBinDoAddition = $(
-    doADCBody
+adcBinDoAddition(getReg : M6502 -- R8) : R8 M6502 -- R8 M6502
+adcBinDoAddition(getReg) = $(
+    doADCBody(getReg)
     adcBinTxlateFlags # M7 N7 C6 -> C S V
     dip2(adcBinSetCFlag)
     dip(adcBinSetNFlag)
@@ -1247,18 +1249,18 @@ adcBinDoAddition = $(
     # Set the new flags
     swap setF6502
   )
-adcBin = dip(adcBinDoAddition) writeOutput
+adcBin(getReg) = dip(adcBinDoAddition(getReg)) dip(adcDecSetZFlag) writeOutput
 
-adcInst : R8 M6502 M6502DataSource M6502DataDest -- M6502 M6502Effect
-adcInst = adjustPCAfterInsn(1) swap drop dip(dup getFB6502 getDFlag) swap if(adcDec,adcBin)
+adcInst(getReg : M6502 -- R8) : R8 M6502 M6502DataSource M6502DataDest -- M6502 M6502Effect
+adcInst(getReg) = adjustPCAfterInsn(1) swap drop dip(dup getFB6502 getDFlag) swap if(adcDec(getReg),adcBin(getReg))
 
-sbcInst : R8 M6502 M6502DataSource M6502DataDest -- M6502 M6502Effect
-sbcInst = dip3(getR8Int 255 swap z- signedToR8 v8) adcInst
+sbcInst(getReg : M6502 -- R8) : R8 M6502 M6502DataSource M6502DataDest -- M6502 M6502Effect
+sbcInst(getReg) = dip3(getR8Int 255 swap z- v8) adcInst(getReg)
 
-0x10 v8 0x33 v8 emptyM6502 setA6502 ds_X dd_A adcInst drop getA6502 == 0x43 v8
-0x01 v8 0xff v8 emptyM6502 setA6502 ds_X dd_A adcInst drop getF6502 == 0x01 v8
-0x7f v8 0x01 v8 emptyM6502 setA6502 ds_X dd_A adcInst drop getF6502 == 0xc0 v8
-0x80 v8 0xff v8 emptyM6502 setA6502 ds_X dd_A adcInst drop getF6502 == 0x41 v8
+0x10 v8 0x33 v8 emptyM6502 setA6502 ds_X dd_A adcInst(getA6502) drop getA6502 == 0x43 v8
+0x01 v8 0xff v8 emptyM6502 setA6502 ds_X dd_A adcInst(getA6502) drop getF6502 == 0x01 v8
+0x7f v8 0x01 v8 emptyM6502 setA6502 ds_X dd_A adcInst(getA6502) drop getF6502 == 0xc0 v8
+0x80 v8 0xff v8 emptyM6502 setA6502 ds_X dd_A adcInst(getA6502) drop getF6502 == 0x41 v8
 
 data BitwisePerform
   bp : Int Int Int Int -- BitwisePerform
@@ -1321,33 +1323,98 @@ rtsReduceIncSP = drop drop swap drop incSP6502
 doRTS : R8 M6502 M6502DataSource M6502DataDest -- M6502 M6502Effect
 doRTS = rtsReduceIncSP rtsPopMsb nextState6502 dup getSP6502 getR8Int 0x100 z+ fetchByte
 
+doRTI : R8 M6502 M6502DataSource M6502DataDest -- M6502 M6502Effect
+doRTI = rtsReduceIncSP rtiPopFlags nextState6502 dup getSP6502 getR8Int 0x100 z+ fetchByte
+
+roxSetupValue(cFlagValue : Int -- Bool) : R8 M6502 -- M6502 Int Int Bool
+roxSetupValue(cFlagValue) = $(
+  swap getR8Int dup cFlagValue dip2(dup getFB6502 getCFlag if(1,0))
+  )
+
+roxGetFlags(adjust : Int Int -- Int) : Int Int Bool -- Int Bool Bool Bool
+roxGetFlags(adjust) = $(
+  dip(swap adjust)
+  dip(dup 0 z=) # Z
+  dip2(dup 127 z>) # N Z C
+  )
+
+rolInst : R8 M6502 M6502DataSource M6502DataDest -- M6502 M6502Effect
+
+rolFinish : M6502 Int Bool Bool Bool -- R8 M6502
+rolFinish = $(
+  dip3(signedToR8 v8 swap dup getFB6502)
+  dip2(setNFlag)
+  dip(setZFlag)
+  setCFlag
+  swap setFB6502
+  )
+
+rolInst = $(
+  dip2(
+    roxSetupValue(128 z>)
+    roxGetFlags(2 z* z+ 256 modInt)
+    rolFinish    
+  )
+  swap drop writeOutput
+  )
+
+rorInst : R8 M6502 M6502DataSource M6502DataDest -- M6502 M6502Effect
+rorInst = $(
+  dip2(
+    roxSetupValue(2 modInt 1 z=)
+    roxGetFlags(dip(128 z*) 2 divInt z+ 256 modInt)
+    rolFinish
+  )
+  swap drop writeOutput
+  )
+
+aslInst : R8 M6502 M6502DataSource M6502DataDest -- M6502 M6502Effect
+aslInst = $(
+  dip2(
+    roxSetupValue(128 z>)
+    roxGetFlags(2 z* dip(drop) 256 modInt)
+    rolFinish
+  )
+  swap drop writeOutput
+  )
+
+lsrInst : R8 M6502 M6502DataSource M6502DataDest -- M6502 M6502Effect
+lsrInst = $(
+  dip2(
+    roxSetupValue(2 modInt 1 z=)
+    roxGetFlags(2 divInt dip(drop))
+    rolFinish
+  )
+  swap drop writeOutput
+  )
+
 doInstructionBody : R8 M6502 M6502DataSource M6502DataDest M6502InstLabel -- M6502 M6502Effect
-doInstructionBody = match(ADC -> adcInst,
+doInstructionBody = match(ADC -> adcInst(getA6502),
   AND -> bitwiseInst(and),
-  ASL -> nopInst,
+  ASL -> aslInst,
   BRK -> brkInst,
-  BIT -> nopInst,
+  BIT -> bitwiseInst(and),
   Bxx -> drop drop nopInst,
   CLx -> clrFlag,
-  CMP -> nopInst,
-  CPX -> nopInst,
-  CPY -> nopInst,
+  CMP -> drop dd_DUMMY sbcInst(getA6502),
+  CPX -> sbcInst(getX6502),
+  CPY -> sbcInst(getY6502),
   DEx -> 255 binAddConst,
   EOR -> bitwiseInst(xor),
   INx -> 1 binAddConst,
   JMP -> nopInst, # Special handling downstream of address mode, since arg isn't R8
   JSR -> nopInst, # Ditto
   LDx -> transfer,
-  LSR -> nopInst,
+  LSR -> lsrInst,
   NOP -> nopInst,
   ORA -> bitwiseInst(or),
   PHf -> pushInst,
   PLf -> popInst,
-  ROL -> nopInst,
-  ROR -> nopInst,
-  RTI -> nopInst,
+  ROL -> rolInst,
+  ROR -> rorInst,
+  RTI -> doRTI,
   RTS -> doRTS,
-  SBC -> sbcInst,
+  SBC -> sbcInst(getA6502),
   SEx -> setFlag,
   STx -> store,
   Txy -> transfer,
@@ -1502,6 +1569,9 @@ continueJSR = dip2(drop) dip(doJsrPushLsb) swap dip(v16 swap setPC6502)
 continueRTS : R8 M6502 -- M6502 M6502Effect
 continueRTS = incSP6502 swap rtsPopLsb nextState6502 dup getSP6502 getR8Int 0x100 z+ fetchByte
 
+continueRTI : R8 M6502 -- M6502 M6502Effect
+continueRTI = setF6502 incSP6502 rtsPopMsb nextState6502 dup getSP6502 getR8Int 0x100 z+ fetchByte
+
 finishRTS : R8 M6502 R8 -- M6502 M6502Effect
 finishRTS = rotl swap numMsbLsb 1 z+ v16 swap setPC6502 fetch nextState6502 fetchPCEffect
 
@@ -1549,6 +1619,8 @@ showM6502State = match(
   rtsPopMsb -> "rtsPopMsb",
   rtsPopLsb -> "rtsPopLsb" showAndR8,
 
+  rtiPopFlags -> "rtiPopFlags",
+
   prefetch -> "prefetch"
   )
 
@@ -1585,7 +1657,9 @@ runOneStep = dup stateOf6502 match(reset -> readByteAfterReset,
   jsrPushLsb -> continueJSR,
 
   rtsPopMsb -> continueRTS,
-  rtsPopLsb -> finishRTS
+  rtsPopLsb -> finishRTS,
+
+  rtiPopFlags -> continueRTI
   )
 
 showValueOnStack(convert : t -- Str) : t Str -- Str

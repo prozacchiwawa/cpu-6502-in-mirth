@@ -131,6 +131,20 @@ afterTestSBCProg2 : M6502 M6502Effect Ram
 afterTestSBCProg2 = emptyM6502 noEff testSBCProg2 untilBRK
 afterTestSBCProg2 drop drop == 5 v16 0x7f v8 v8zero v8zero 0xff v8 emptyFlags true setVFlag true setCFlag fetch m6502
 
+testSBCProg3 : Ram
+testSBCProg3 = $(
+  emptyRam
+  0x0000 0x38 v8 rotl byte_to_ram
+  0x0001 0xa9 v8 rotl byte_to_ram
+  0x0002 0x03 v8 rotl byte_to_ram
+  0x0003 0xe9 v8 rotl byte_to_ram
+  0x0004 0x03 v8 rotl byte_to_ram
+  )
+
+afterTestSBCProg3 : M6502 M6502Effect Ram
+afterTestSBCProg3 = emptyM6502 noEff testSBCProg3 untilBRK
+afterTestSBCProg3 drop drop == 5 v16 3 v8 v8zero v8zero 0xff v8 emptyFlags true setZFlag true setCFlag fetch m6502
+
 testSECProg : Ram
 testSECProg = $(
   emptyRam
@@ -172,3 +186,32 @@ testIndirectJMPProg = $(
 afterTestIndirectJMPProg : M6502 M6502Effect Ram
 afterTestIndirectJMPProg = emptyM6502 noEff testIndirectJMPProg untilBRK
 afterTestIndirectJMPProg drop drop == 0x09 v16 8 v8 v8zero v8zero 0xff v8 emptyFlags true setIFlag fetch m6502
+
+testCMPProg : Ram
+testCMPProg = $(
+  emptyRam
+  0x0000 0xa9 v8 rotl byte_to_ram
+  0x0001 0x03 v8 rotl byte_to_ram
+  0x0002 0xc9 v8 rotl byte_to_ram
+  0x0003 0x03 v8 rotl byte_to_ram
+  )
+
+afterTestCMPProg : M6502 M6502Effect Ram
+afterTestCMPProg = emptyM6502 noEff testCMPProg untilBRK
+afterTestCMPProg drop drop == 4 v16 3 v8 v8zero v8zero 0xff v8 emptyFlags true setZFlag true setCFlag fetch m6502
+
+testCPXProg : Ram
+testCPXProg = $(
+  emptyRam
+  0x0000 0xa9 v8 rotl byte_to_ram
+  0x0001 0x03 v8 rotl byte_to_ram
+  0x0002 0xaa v8 rotl byte_to_ram
+  0x0003 0xa9 v8 rotl byte_to_ram
+  0x0004 0x04 v8 rotl byte_to_ram
+  0x0005 0xe0 v8 rotl byte_to_ram
+  0x0006 0x03 v8 rotl byte_to_ram
+  )
+
+afterTestCPXProg : M6502 M6502Effect Ram
+afterTestCPXProg = emptyM6502 noEff testCPXProg untilBRK
+afterTestCPXProg drop drop == 7 v16 4 v8 3 v8 v8zero 0xff v8 emptyFlags true setZFlag true setCFlag fetch m6502
