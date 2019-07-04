@@ -1,0 +1,155 @@
+import base/int
+import base/nat
+import r8
+import divmod
+
+export cpu6502/math
+  adcBody : Bool Int Int Int -- Int Bool Bool Bool
+  sbcBody : Bool Int Int Int -- Int Bool Bool Bool
+
+  adcDecBody : Int Int Int -- Int Bool Bool Bool
+  adcDecPrepare : Int Int Int -- Int Int Int Int
+  adcDecProduceResult : Int Int Int -- Int Bool Bool Bool
+  adcDigitsCarryingAtMost1 : Int Int -- Int Int # Carry Value
+  adcDecExtractV : Int Int -- Int Int Int
+  adcDecRawBody : Int Int Int -- Int Int Int Int
+  adcDecCombineDigits : Int Int Int Int -- Int Int Int
+
+  fourBitTwosComplement : Int -- Int
+end
+
+boolMatch3?(s : Bool,c : Bool,v : Bool) : Bool Bool Bool -- Bool Bool Bool Bool
+boolMatch3?(s,c,v) = dup3 dip2(s not xor) dip(c not xor) v not xor and and
+
+# Thanks : http://6502.org/tutorials/decimal_mode.html#3.2.2
+computeOverflowAL : Int Int -- Int Int
+computeOverflowAL = 9 dup2 z> if(drop 6 z+ mod16 16 z+,drop) 
+
+computeOverflow : Int Int -- Bool
+computeOverflow = computeOverflowAL dip(16 z*) z+ 256 z>
+
+adcBinTxlateFlags : Bool Bool Bool -- Bool Bool Bool
+adcBinTxlateFlags = cond(
+  boolMatch3?(false,false,false) -> drop drop drop false false false,
+  boolMatch3?(false,false,true ) -> drop drop drop false true  true,
+  boolMatch3?(false,true ,false) -> drop drop drop false true  false,
+  boolMatch3?(false,true ,true ) -> drop drop drop true  false false,
+  boolMatch3?(true ,false,false) -> drop drop drop false true  false,
+  boolMatch3?(true ,false,true ) -> drop drop drop true  false false,
+  boolMatch3?(true ,true ,false) -> drop drop drop true  false true,
+  drop drop drop true  true  false
+  )
+
+sbcBinTxlateFlags : Bool Bool Bool -- Bool Bool Bool
+sbcBinTxlateFlags = cond(
+  boolMatch3?(false,false,false) -> drop drop drop false false false,
+  boolMatch3?(false,false,true ) -> drop drop drop true  true  false,
+  boolMatch3?(false,true ,false) -> drop drop drop false true  false,
+  boolMatch3?(false,true ,true ) -> drop drop drop false false true,
+  boolMatch3?(true ,false,false) -> drop drop drop true  true  true,
+  boolMatch3?(true ,false,true ) -> drop drop drop true  false false,
+  boolMatch3?(true ,true ,false) -> drop drop drop false false false,
+  drop drop drop true true  false
+  )
+
+true  false false boolMatch3?(true ,false,false) == true  false false true
+true  true  false boolMatch3?(true ,true ,false) == true  true  false true
+false false true  boolMatch3?(false,false,true ) == false false true  true
+
+false false false adcBinTxlateFlags == false false false
+false false true  adcBinTxlateFlags == false true  true
+
+adcBinExtractM7 : Int -- Bool
+adcBinExtractM7 = 128 divInt 2 modInt 1 z=
+
+adcBinExtractM7N7 : Int Int Int -- Int Int Int Bool Bool
+adcBinExtractM7N7 = dup3 swap dip(z+) dip(adcBinExtractM7) swap dip(adcBinExtractM7)
+
+adcBinExtractC6 : Int Int Int -- Int Int Int Bool
+adcBinExtractC6 = dup3 swap dip(z+) dip(128 modInt signedToR8) 128 modInt signedToR8 z+ 127 z>
+
+0x00 0x00 0 adcBinExtractC6 == 0x00 0x00 0 false
+0x00 0x50 0 adcBinExtractC6 == 0x00 0x50 0 false
+0x50 0x50 0 adcBinExtractC6 == 0x50 0x50 0 true
+0xff 0xff 0 adcBinExtractC6 == 0xff 0xff 0 true
+
+# adc takes the two values and 1 or zero depending on the carry flag
+# returns the addition result and the three flags: N C V
+
+adcBinBody : Int Int Int -- Int Bool Bool Bool
+adcBinBody = adcBinExtractM7N7 dip2(adcBinExtractC6) dip3(z+ z+)
+
+adcDecToBin : Int -- Int Bool
+adcDecToBin = dup 99 z> dip(100 modInt v8 hexDigits dip(16 z*) z+)
+
+breakIntoHexDigits : Int -- Int Int
+breakIntoHexDigits = dup dip(16 divInt) 16 modInt
+
+adcDigitsCarryingAtMost1 : Int Int -- Int Int # Carry Value
+adcDigitsCarryingAtMost1 = z+ dup 9 z> if(dip(1) 10 modInt, dip(0))
+
+0x33 breakIntoHexDigits == 3 3
+15 15 adcDigitsCarryingAtMost1 == 1 0
+9 8 adcDigitsCarryingAtMost1 == 1 7
+
+# 4 bit twos complement high digit
+fourBitTwosComplement : Int -- Int
+fourBitTwosComplement = dup 7 z> if(16 z-,id)
+
+adcDecExtractV : Int Int -- Int Int Int
+adcDecExtractV = $(
+  dup2
+  dip(fourBitTwosComplement)
+  fourBitTwosComplement
+  z+ dup -8 z< if(drop 1,7 z> if(1,0))
+  rotr
+  )
+
+intToBool : Int -- Bool
+intToBool = 0 z= not
+
+adcDecPrepare : Int Int Int -- Int Int Int Int
+adcDecPrepare = $(
+  rotl
+  z+
+  dip(breakIntoHexDigits)
+  breakIntoHexDigits
+  dip(rotr) # HB HA LA LB
+  )
+
+1 0x31 0x45 adcDecPrepare == 4 3 1 6
+
+adcDecProduceResult : Int Int Int -- Int Bool Bool Bool
+adcDecProduceResult = $(
+  rotl
+  rotl
+  swap # Result C V
+  dip2(dup 0x7f z>)
+  dip(intToBool)
+  intToBool # Result S C V
+  )
+
+adcDecRawBody : Int Int Int -- Int Int Int Int
+adcDecRawBody = $(
+  adcDecPrepare # Int Int Int Int # AH BH BL AL
+  adcDigitsCarryingAtMost1 # AH BH C ResultL
+  dip(z+) # AH BHP1 ResultL
+  dip(adcDecExtractV) # V AH BHP1 ResultL
+  dip(adcDigitsCarryingAtMost1) # V C ResultH ResultL
+  )
+
+adcDecCombineDigits : Int Int Int Int -- Int Int Int
+adcDecCombineDigits = swap 16 z* z+ # V C Result
+
+adcDecBody : Int Int Int -- Int Bool Bool Bool
+adcDecBody = $(
+  adcDecRawBody
+  adcDecCombineDigits
+  adcDecProduceResult
+  )
+
+adcBody : Bool Int Int Int -- Int Bool Bool Bool
+adcBody = dip(rotl) swap if(adcDecBody,adcBinBody)
+
+sbcBody : Bool Int Int Int -- Int Bool Bool Bool
+sbcBody = dip3(drop) z- z- false false false

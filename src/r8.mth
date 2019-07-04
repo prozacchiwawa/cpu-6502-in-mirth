@@ -22,6 +22,9 @@ export r8
   fromHexDigitsHL : Int Int -- R8  
 
   r8DivInt : R8 Int -- R8 Int
+
+  signedToR8 : Int -- Int
+  toSignedR8 : Int -- Int  
 end
 
 # R8
@@ -61,3 +64,20 @@ fromHexDigitsHL = swap mod16 16 z* swap mod16 z+ v8
 
 r8DivInt : R8 Int -- R8 Int
 r8DivInt = dip(dup getR8Int) zpos z/
+
+toSignedR8 : Int -- Int
+toSignedR8 = 127 dup2 z> swap drop if(256 z-,)
+
+15 toSignedR8 == 15
+128 toSignedR8 == -128
+127 toSignedR8 == 127
+255 toSignedR8 == -1
+
+signedToR8 : Int -- Int
+signedToR8 = 0 dup2 z< swap drop if(256 z+ signedToR8,256 modInt)
+
+11 signedToR8 == 11
+-1 signedToR8 == 255
+127 signedToR8 == 127
+-128 signedToR8 == 128
+-127 signedToR8 == 129
