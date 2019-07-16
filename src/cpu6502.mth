@@ -897,6 +897,8 @@ setFlagIf : R8 Bool Int -- R8
 setFlagIf = swap if(setBitR8,dropBitR8)
 
 v8zero true 128 setFlagIf == 128 v8
+128 v8 true 128 setFlagIf == 128 v8
+128 v8 false 128 setFlagIf == 0 v8
 
 setNZFlags : M6502 Bool Bool -- M6502
 setNZFlags = dip2(dup getF6502) dip(2 setFlagIf) 128 setFlagIf swap setF6502
@@ -1134,7 +1136,7 @@ lsrInst = $(
   )
 
 adcSetFlag(val : Int) : M6502 Bool -- M6502
-adcSetFlag(val) = dip(dup getF6502) if(val setBitR8,id) swap setF6502
+adcSetFlag(val) = dip(dup getF6502) val setFlagIf swap setF6502
 
 adcGetDFlag : M6502 Int Int Int -- M6502 Bool Int Int Int
 adcGetDFlag = dip3(dup getFB6502 getDFlag)
@@ -1186,6 +1188,7 @@ adcRun(body) = $(
 0 0x31 0x42 adcDecRawBody == 0 0 7 3
 0 0x99 0x99 adcDecRawBody == 1 1 9 8
 
+# Result S C V
 0x00 0x00 0 adcDecBody == 0x00 false false false
 0x01 0x00 0 adcDecBody == 0x01 false false false
 0x02 0x00 0 adcDecBody == 0x02 false false false
@@ -1197,6 +1200,12 @@ adcRun(body) = $(
 0x33 0x29 0 adcDecBody == 0x62 false false false
 0x99 0x99 1 adcDecBody == 0x99 true  true  true
 
+# Result S C V
+0x01 0x7f 0 adcBinBody == 0x80 true  false true
+0x05 0x05 0 adcBinBody == 0x0a false false false
+0x58 0x46 1 adcBinBody == 0x9f true  false true
+
+# Result S C V
 true  0x33 0x29 0 adcBody == 0x62 false false false
 false 0x33 0x29 0 adcBody == 0x5c false false false
 true  0x05 0x05 0 adcBody == 0x10 false false false
@@ -1208,8 +1217,8 @@ adcInst(getReg,body) = $(
   dip2(
     dup getF6502 getR8Int 2 modInt # M6502 -- M6502 Int
     dip(
-      swap getR8Int toSignedR8 # M6502 -- Int
-      dip(dup getReg getR8Int toSignedR8) # M6502 Int -- M6502 Int Int
+      swap getR8Int # M6502 -- Int
+      dip(dup getReg getR8Int) # M6502 Int -- M6502 Int Int
     ) # M6502 -- M6502 Int Int Int
   ) swap drop dip(adcRun(body)) writeOutput
 )

@@ -26,7 +26,7 @@ isSetBit = zpos z/ mod2 1 z=
 80 1 isSetBit == false
 
 setBit : Int Int -- Int
-setBit = dip(dup) dup dip(swap) isSetBit if(drop,z+)
+setBit = dup2 isSetBit if(drop,z+)
 
 dropBit : Int Int -- Int
-dropBit = dip(dup) dup dip(swap) isSetBit if(z-,drop)
+dropBit = dup2 isSetBit if(z-,drop)
