@@ -157,7 +157,7 @@ testSBCProg4 = $(
 
 afterTestSBCProg4 : M6502 M6502Effect Ram
 afterTestSBCProg4 = emptyM6502 noEff testSBCProg4 untilBRK
-afterTestSBCProg4 drop drop == 5 v16 3 v8 v8zero v8zero 0xff v8 emptyFlags true setZFlag true setCFlag fetch m6502
+afterTestSBCProg4 drop drop == 5 v16 0 v8 v8zero v8zero 0xff v8 emptyFlags true setZFlag true setCFlag fetch m6502
 
 testSECProg : Ram
 testSECProg = $(

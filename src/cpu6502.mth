@@ -1211,6 +1211,20 @@ false 0x33 0x29 0 adcBody == 0x5c false false false
 true  0x05 0x05 0 adcBody == 0x10 false false false
 true  0x05 0x05 0 adcBody == 0x10 false false false
 
+0x80 0x01 0 sbcBinExtractV dip(drop drop drop) == true
+
+3 4 sbcDigitSubtract == 1 9
+
+0x13 0x04 0 sbcDecRaw == 0 0 8
+
+false 0x00 0x01 1 sbcBody == 0xff true  false false
+false 0x80 0x01 0 sbcBody == 0x7e false true  true
+true  0x13 0x04 0 sbcBody == 0x08 false true  false
+true  0x13 0x04 1 sbcBody == 0x09 false true  false
+
+afterAdcZF : R8 M6502 -- R8 M6502
+afterAdcZF = dup2 drop getR8Int 0 z= dip(dup getFB6502) setZFlag swap setFB6502
+
 adcInst(getReg : M6502 -- R8,body : Bool Int Int Int -- Int Bool Bool Bool) : R8 M6502 M6502DataSource M6502DataDest -- M6502 M6502Effect
 adcInst(getReg,body) = $(
   adjustPCAfterInsn(1)
@@ -1220,7 +1234,9 @@ adcInst(getReg,body) = $(
       swap getR8Int # M6502 -- Int
       dip(dup getReg getR8Int) # M6502 Int -- M6502 Int Int
     ) # M6502 -- M6502 Int Int Int
-  ) swap drop dip(adcRun(body)) writeOutput
+  ) swap drop dip(adcRun(body))
+  dip(afterAdcZF)
+  writeOutput
 )
 
 doInstructionBody : R8 M6502 M6502DataSource M6502DataDest M6502InstLabel -- M6502 M6502Effect

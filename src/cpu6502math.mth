@@ -13,11 +13,18 @@ export cpu6502/math
   adcDigitsCarryingAtMost1 : Int Int -- Int Int # Carry Value
   adcDecExtractV : Int Int -- Int Int Int
   adcDecRawBody : Int Int Int -- Int Int Int Int
-  adcDecCombineDigits : Int Int Int Int -- Int Int Int
+  adcDecCombineDigits : Int Int -- Int
 
   fourBitTwosComplement : Int -- Int
 
   adcBinBody : Int Int Int -- Int Bool Bool Bool
+
+  sbcBinExtractV : Int Int Int -- Int Int Int Bool
+  sbcDigitSubtract : Int Int -- Int Int
+  sbcDecRaw : Int Int Int -- Int Int Int
+
+  sbcDecBody : Int Int Int -- Int Bool Bool Bool
+  sbcBinBody : Int Int Int -- Int Bool Bool Bool
 end
 
 adcBinGetA : Int Int Int -- Int Int Int Int
@@ -30,14 +37,17 @@ adcBinGetSrc : Int Int Int -- Int Int Int Int
 adcBinGetSrc = dup2 drop
 
 # jsnes: A ^ src & 0x80 == 0 && A ^ sum & 0x80 != 0
+adcBinExtractAXor(extract : Int Int Int -- Int Int Int Int) : Int Int Int -- Int Int Int Bool
+adcBinExtractAXor(extract) = adcBinGetA 128 divInt 2 modInt dip(extract 128 divInt 2 modInt) z= not
+
 adcBinExtractAXorSum : Int Int Int -- Int Int Int Bool
-adcBinExtractAXorSum = adcBinGetA 128 divInt 2 modInt dip(adcBinGetSum 128 divInt 2 modInt) z=
+adcBinExtractAXorSum = adcBinExtractAXor(adcBinGetSum)
 
 adcBinExtractAXorSrc : Int Int Int -- Int Int Int Bool
-adcBinExtractAXorSrc = adcBinGetA 128 divInt 2 modInt dip(adcBinGetSrc 128 divInt 2 modInt) z=
+adcBinExtractAXorSrc = adcBinExtractAXor(adcBinGetSrc)
 
 adcBinExtractV : Int Int Int -- Int Int Int Bool
-adcBinExtractV = adcBinExtractAXorSum not dip(adcBinExtractAXorSrc) and
+adcBinExtractV = adcBinExtractAXorSum dip(adcBinExtractAXorSrc not) and
 
 adcBinExtractSC : Int Int Int -- Int Int Int Bool Bool
 adcBinExtractSC = dup3 z+ z+ dup 255 z> dip(256 modInt 127 z>)
@@ -104,7 +114,7 @@ adcDecRawBody = $(
   dip(adcDigitsCarryingAtMost1) # V C ResultH ResultL
   )
 
-adcDecCombineDigits : Int Int Int Int -- Int Int Int
+adcDecCombineDigits : Int Int -- Int
 adcDecCombineDigits = swap 16 z* z+ # V C Result
 
 adcDecBody : Int Int Int -- Int Bool Bool Bool
@@ -117,5 +127,47 @@ adcDecBody = $(
 adcBody : Bool Int Int Int -- Int Bool Bool Bool
 adcBody = dip(rotl) swap if(adcDecBody,adcBinBody)
 
+sbcDigitSubtract : Int Int -- Int Int
+sbcDigitSubtract = $(
+  z-
+  dup
+  0 z< if(100 z+ 10 modInt dip(1), dip(0))
+  )
+
+sbcCombineBorrow : Int Int -- Int
+sbcCombineBorrow = 1 swap z- z+
+
+sbcDecRaw : Int Int Int -- Int Int Int
+sbcDecRaw = $(
+  1 swap z- rotr
+  adcDecPrepare
+  sbcDigitSubtract
+  dip(z- sbcDigitSubtract) # Borrow RH RL
+  )
+
+sbcDecBody : Int Int Int -- Int Bool Bool Bool # Int Bool Bool Bool
+sbcDecBody = $(
+  sbcDecRaw
+  adcBinExtractV
+  dip(rotl 1 z-) swap 0 z= # RH RL V C
+  dip2(adcDecCombineDigits) # R V C
+  dip2(512 z+ 256 modInt dup 127 z>) not swap # R S C V
+  )
+
+sbcBinExtractSC : Int Int Int -- Int Int Int Bool Bool
+sbcBinExtractSC = dup3 sbcCombineBorrow z- dup 512 z+ 256 modInt 127 z> dip(-1 z>) swap
+
+sbcBinGetSum : Int Int Int -- Int Int Int Int
+sbcBinGetSum = dup3 sbcCombineBorrow z- 256 z+ 256 modInt
+
+sbcBinExtractAXorSum : Int Int Int -- Int Int Int Bool
+sbcBinExtractAXorSum = adcBinExtractAXor(sbcBinGetSum)
+
+sbcBinExtractV : Int Int Int -- Int Int Int Bool
+sbcBinExtractV = sbcBinExtractAXorSum dip(adcBinExtractAXorSrc) and
+
+sbcBinBody : Int Int Int -- Int Bool Bool Bool
+sbcBinBody = sbcBinExtractV dip(sbcBinExtractSC) dip3(sbcCombineBorrow z- 512 z+ 256 modInt)
+
 sbcBody : Bool Int Int Int -- Int Bool Bool Bool
-sbcBody = dip3(drop) z- z- false false false
+sbcBody = dip(rotl) swap if(sbcDecBody,sbcBinBody)
