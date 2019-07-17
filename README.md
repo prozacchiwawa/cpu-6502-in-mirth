@@ -1,4 +1,4 @@
-# 6502 in mirth.
+# 6502 in mirth-lang ( https://github.com/mirth-lang/mirth ).
 
 Work in progress.
 
