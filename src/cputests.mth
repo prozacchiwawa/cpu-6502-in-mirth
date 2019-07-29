@@ -229,3 +229,21 @@ testCPXProg = $(
 afterTestCPXProg : M6502 M6502Effect Ram
 afterTestCPXProg = emptyM6502 noEff testCPXProg untilBRK
 afterTestCPXProg drop drop == 7 v16 4 v8 3 v8 v8zero 0xff v8 emptyFlags true setZFlag true setCFlag fetch m6502
+
+testBEQProg : Ram
+testBEQProg = $(
+  emptyRam
+  0x0000 0xa9 v8 rotl byte_to_ram
+  0x0001 0x00 v8 rotl byte_to_ram
+  0x0002 0xaa v8 rotl byte_to_ram
+  0x0003 0x69 v8 rotl byte_to_ram
+  0x0004 0x01 v8 rotl byte_to_ram
+  0x0005 0xc9 v8 rotl byte_to_ram
+  0x0006 0x05 v8 rotl byte_to_ram
+  0x0007 0xd0 v8 rotl byte_to_ram
+  0x0008 0xfa v8 rotl byte_to_ram
+  )
+
+afterTestBEQProg : M6502 M6502Effect Ram
+afterTestBEQProg = emptyM6502 noEff testBEQProg untilBRK
+afterTestBEQProg drop drop == 9 v16 5 v8 v8zero v8zero 0xff v8 emptyFlags true setZFlag true setCFlag fetch m6502

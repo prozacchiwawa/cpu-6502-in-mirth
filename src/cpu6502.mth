@@ -456,9 +456,9 @@ decodeCBranchOp = cond(
   )
 
 decodeCBranchInst : R8 -- M6502Instruction
-decodeCBranchInst = decodeCBranchOp swap drop ds_DUMMY dd_DUMMY di
+decodeCBranchInst = decodeCBranchOp swap drop ds_Imm8 dd_DUMMY di
 
-0xd0 v8 decodeCBranchInst == 3 false Bxx ds_DUMMY dd_DUMMY di
+0xd0 v8 decodeCBranchInst == 3 false Bxx ds_Imm8 dd_DUMMY di
 
 decodeFlgInst : R8 -- M6502Instruction
 decodeFlgInst = cond(
@@ -639,14 +639,14 @@ decodeInstruction = match(g0 -> decodeG0Inst,
 0xe4 v8 categorizeInstruction decodeInstruction == CPX ds_zp dd_DUMMY di
 0xec v8 categorizeInstruction decodeInstruction == CPX ds_Abs dd_DUMMY di
 
-0x10 v8 categorizeInstruction decodeInstruction == 0 false Bxx ds_DUMMY dd_DUMMY di
-0x30 v8 categorizeInstruction decodeInstruction == 0 true Bxx ds_DUMMY dd_DUMMY di
-0x50 v8 categorizeInstruction decodeInstruction == 1 false Bxx ds_DUMMY dd_DUMMY di
-0x70 v8 categorizeInstruction decodeInstruction == 1 true Bxx ds_DUMMY dd_DUMMY di
-0x90 v8 categorizeInstruction decodeInstruction == 2 false Bxx ds_DUMMY dd_DUMMY di
-0xb0 v8 categorizeInstruction decodeInstruction == 2 true Bxx ds_DUMMY dd_DUMMY di
-0xd0 v8 categorizeInstruction decodeInstruction == 3 false Bxx ds_DUMMY dd_DUMMY di
-0xf0 v8 categorizeInstruction decodeInstruction == 3 true Bxx ds_DUMMY dd_DUMMY di
+0x10 v8 categorizeInstruction decodeInstruction == 0 false Bxx ds_Imm8 dd_DUMMY di
+0x30 v8 categorizeInstruction decodeInstruction == 0 true Bxx ds_Imm8 dd_DUMMY di
+0x50 v8 categorizeInstruction decodeInstruction == 1 false Bxx ds_Imm8 dd_DUMMY di
+0x70 v8 categorizeInstruction decodeInstruction == 1 true Bxx ds_Imm8 dd_DUMMY di
+0x90 v8 categorizeInstruction decodeInstruction == 2 false Bxx ds_Imm8 dd_DUMMY di
+0xb0 v8 categorizeInstruction decodeInstruction == 2 true Bxx ds_Imm8 dd_DUMMY di
+0xd0 v8 categorizeInstruction decodeInstruction == 3 false Bxx ds_Imm8 dd_DUMMY di
+0xf0 v8 categorizeInstruction decodeInstruction == 3 true Bxx ds_Imm8 dd_DUMMY di
 
 0x00 v8 categorizeInstruction decodeInstruction == BRK ds_DUMMY dd_DUMMY di
 0x20 v8 categorizeInstruction decodeInstruction == JSR ds_Abs dd_DUMMY di
@@ -1263,13 +1263,36 @@ cmpRun(body) = $(
   cmpConsumeFlags
 )
 
+doBranch : R8 M6502 -- M6502 M6502Effect
+doBranch = swap getR8Int dup 0x7f z> if(256 z-,id) dip(dup getPC6502 getR16Int) z+ 1 z+ v16 swap setPC6502 nextPrefetch noEff
+
+dontBranch : R8 M6502 -- M6502 M6502Effect
+dontBranch = swap drop nextPrefetch noEff
+
+branchBody(getFlag : M6502FlagBits -- Bool) : R8 M6502 M6502DataSource M6502DataDest Bool -- M6502 M6502Effect
+branchBody(getFlag) = $(
+  dip3(dup getFB6502 getFlag)
+  dip(rotl) if(id,not) dip(drop drop) if(doBranch,dontBranch)
+  )
+
+branchInst : R8 M6502 M6502DataSource M6502DataDest Int Bool -- M6502 M6502Effect
+branchInst = $(
+  swap
+  cond(
+    dup 0 z= -> drop branchBody(getNFlag), # BPL
+    dup 1 z= -> drop branchBody(getVFlag), # BVC
+    dup 2 z= -> drop branchBody(getCFlag), # BCC
+                drop branchBody(getZFlag)  # BNE
+  )
+)
+
 doInstructionBody : R8 M6502 M6502DataSource M6502DataDest M6502InstLabel -- M6502 M6502Effect
 doInstructionBody = match(ADC -> adcInst(getA6502, adcRun(adcBody)),
   AND -> bitwiseInst(and),
   ASL -> aslInst,
   BRK -> brkInst,
   BIT -> bitwiseInst(and),
-  Bxx -> drop drop nopInst,
+  Bxx -> branchInst,
   CLx -> clrFlag,
   CMP -> drop dd_DUMMY adcInst(getA6502, cmpRun(sbcBody)),
   CPX -> drop dd_DUMMY adcInst(getX6502, cmpRun(sbcBody)),
