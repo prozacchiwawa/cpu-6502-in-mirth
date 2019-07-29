@@ -11,7 +11,11 @@ export ram
   type R8
   type Ram
   ram : List(R8) -- Ram
-  emptyRam : Ram  
+  emptyRam : Ram
+
+  empty64k : List(R8)
+  # 64k insert target
+  ramCopyTo : List(R8) List(R8) Int -- List(R8)
 
   byte_of_ram : Int Ram -- R8
   byte_to_ram : Int R8 Ram -- Ram
@@ -36,7 +40,23 @@ emptyRamNext = rotr dup dip(cons) rotl 1 z- emptyRam_
 
 emptyRam_ = dup 0 z= if(emptyRamReturnList, emptyRamNext)
 
-emptyRam = nil v8zero 65536 emptyRam_ ram
+empty64k : List(R8)
+empty64k = nil v8zero 65536 emptyRam_
+
+emptyRam = empty64k ram
+
+ramCopyTo : List(R8) List(R8) Int -- List(R8) # to64k copyin target
+ramCopyTo = $(
+  znat dip(swap) # copyin to64k at
+  dip2(len?) # copyin cpylen to64 at
+  rotl # copyin to64 at cpylen
+  dip(break) # copyin first64 end64 cpylen
+  break # copyin first64 mid64 end64
+  dip(rotl) # first64 mid64 copyin end64
+  dip2(drop) # first64 copyin end64
+  nil snoc snoc snoc # List(List(R8))
+  flatten
+  )
 
 byte_of_ram : Int Ram -- R8
 

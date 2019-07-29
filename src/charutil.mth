@@ -1,0 +1,47 @@
+import base/int
+import base/nat
+import base/str
+import base/char
+
+export charutil
+  isCharBetween? : Char Int Int -- Char Bool
+  isCharGreater? : Char Int -- Char Bool
+  isCharLess? : Char Int -- Char Bool
+  isHexDigit? : Char -- Char Bool
+  toHexDigit : Char -- Int
+end
+
+isCharGreater? : Char Int -- Char Bool
+isCharGreater? = $(
+  dip(dup char->int) # Char Int Int
+  z>=
+  )
+
+isCharLess? : Char Int -- Char Bool
+isCharLess? = $(
+  dip(dup char->int) # Char Int Int
+  z<=
+  )
+
+isCharBetween? : Char Int Int -- Char Bool
+isCharBetween? = $(
+  dip(isCharGreater?) # Char >=lo hi
+  swap # Char hi >=lo
+  dip(isCharLess?) # Char <=hi >=lo
+  and
+  )
+
+isHexDigit? : Char -- Char Bool
+isHexDigit? = $(
+  0x30 0x39 isCharBetween?
+  dip(0x41 0x46 isCharBetween?) or
+  dip(0x61 0x66 isCharBetween?) or
+  )
+
+toHexDigit : Char -- Int
+toHexDigit = cond(
+  0x30 0x39 isCharBetween? -> char->int 0x30 z-,
+  0x41 0x46 isCharBetween? -> char->int 0x41 z- 10 z+,
+  0x61 0x66 isCharBetween? -> char->int 0x61 z- 10 z+,
+  drop 0
+  )

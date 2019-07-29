@@ -29,6 +29,9 @@ export cpu6502
   type M6502ZPRegister
   type AbsRequestType
 
+  type Maybe(t)
+  type WriteData
+
   m6502 : R16 R8 R8 R8 R8 M6502FlagBits M6502State -- M6502
 
   noEff : M6502Effect
@@ -89,6 +92,8 @@ export cpu6502
   waitInterrupt : -- M6502Effect
   fetchByte : Int -- M6502Effect
   writeByte : Int R8 -- M6502Effect
+
+  withWrite(donothing : *a -- *b, dosomething : *a Int R8 -- *b) : *a M6502Effect -- *b
 end
 
 data M6502Flag
@@ -728,6 +733,9 @@ data M6502Effect
   fetchByte : Int -- M6502Effect
   writeByte : Int R8 -- M6502Effect
 end
+
+withWrite(donothing : *a -- *b, dosomething : *a Int R8 -- *b) : *a M6502Effect -- *b
+withWrite(donothing, dosomething) = match(noEff -> donothing, waitInterrupt -> donothing, fetchByte -> drop donothing, writeByte -> dosomething)
 
 data M6502State
   reset : M6502State

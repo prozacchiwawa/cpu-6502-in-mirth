@@ -1,17 +1,170 @@
 import base/io
 import base/int
+import base/nat
 import base/str
+import base/char
+import base/path
+import base/list
+import base/maybe
 import ram
 import cpu6502
 import r8
 import r16
-import verifier
+import divmod
 import cpusinglestep
 import cputests
+import charutil
 
-data TestComputer
-  testComputer : M6502 Ram -- TestComputer
+data PETComputer
+  petComputer : M6502 M6502Effect Ram -- PETComputer
 end
 
-startTestComputer : -- TestComputer
-startTestComputer = emptyM6502 verifierProg testComputer
+useHighNybble : List(R8) Int Int -- List(R8) Int Bool
+useHighNybble = drop 16 z* false
+
+useLowNybble : List(R8) Int Int -- List(R8) Int Bool
+useLowNybble = z+ v8 cons 0 true
+
+addCharToMem : List(R8) Int Bool Char -- List(R8) Int Bool
+addCharToMem = $(
+  isHexDigit? if( # List(R8) Int Bool Char
+    toHexDigit # List(R8) Int Bool Int
+    rotr # List(R8) Int Int Bool
+    if(useHighNybble,useLowNybble) # List(R8) Int Bool
+  , drop
+  )
+  )
+
+"0" str->char 0x30 isCharGreater? swap drop == true
+" " str->char 0x30 isCharGreater? swap drop == false
+"9" str->char 0x39 isCharLess? swap drop == true
+"@" str->char 0x39 isCharLess? swap drop == false
+"3" str->char 0x30 0x39 isCharBetween? swap drop == true
+"@" str->char 0x30 0x30 isCharBetween? swap drop == false
+"0" str->char isHexDigit? swap drop == true
+"0" str->char toHexDigit == 0
+"1" str->char isHexDigit? swap drop == true
+"1" str->char toHexDigit == 1
+"9" str->char isHexDigit? swap drop == true
+"9" str->char toHexDigit == 9
+"a" str->char isHexDigit? swap drop == true
+"a" str->char toHexDigit == 10
+"f" str->char isHexDigit? swap drop == true
+"f" str->char toHexDigit == 15
+"A" str->char isHexDigit? swap drop == true
+"F" str->char toHexDigit == 15
+0x20 int->char isHexDigit? swap drop == false
+0x10 int->char isHexDigit? swap drop == false
+
+nil 0 true "1" str->char addCharToMem == nil 0x10 false
+
+nil 0 true "123456918276" strfold(addCharToMem) drop drop == nil 0x12 v8 cons 0x34 v8 cons 0x56 v8 cons 0x91 v8 cons 0x82 v8 cons 0x76 v8 cons
+
+setupResetVector : Ram -- Ram
+setupResetVector = 0xfffc 0 v8 rotl byte_to_ram 0xfffd 0xc0 v8 rotl byte_to_ram
+
+makeRamFromStr : Str -- Ram +IO
+makeRamFromStr = $(
+  dip(nil 0 true) strfold(addCharToMem) drop drop # List(R8)
+  empty64k # copyin to64k
+  swap # to64k copyin
+  0xc000 ramCopyTo # final64k
+  ram # Ram
+  )
+
+petComputerFromRam : Str -- PETComputer +IO
+petComputerFromRam = $(
+  makeRamFromStr
+  setupResetVector # Ram
+  emptyM6502 # Ram M6502
+  noEff # Ram M6502 M6502Effect
+  rotl # M6502 M6502Effect Ram
+  petComputer # PETComputer
+  )
+
+screenSize : Int
+screenSize = 40 25 z*
+
+csi : Str
+csi = 0x1b int->char char->str "[" <>
+
+cursorMove : Int Int -- Str
+cursorMove = $( # x y
+  "H" rotr
+  1 z+ int->str
+  dip(1 z+ int->str ";")
+  csi
+  swap <> swap <> swap <> swap <>
+  )
+
+coordsFromAddr : Int -- Int Int # x y
+coordsFromAddr = dup 40 divInt dip(40 modInt)
+
+printOnScreenAt : R8 Int Int -- +IO
+printOnScreenAt = $(
+  cursorMove
+  swap
+  getR8Int int->char char->str
+  <>
+  print
+  )
+
+writeCharToScreen : R8 Int -- +IO
+writeCharToScreen = $(
+  coordsFromAddr printOnScreenAt
+  )
+
+isInsideScreen : Int -- Int Bool
+isInsideScreen = $(
+  0x8000 z- # pos if above screen
+  dup 0 z< # screenspace-addr true-if-below-screen
+  if(
+    false # neg false
+  , dup # screenspace-addr screenspace-addr
+    screenSize z< # screenspace-addr inside-screen
+  )
+  )
+
+0 isInsideScreen swap drop == false
+0x8000 isInsideScreen == 0 true
+0x8000 40 25 z* z+ isInsideScreen swap drop == false
+0x8000 40 25 z* z+ 1 z- isInsideScreen == 999 true
+
+0x40 v8 0 writeCharToScreen == id
+0x41 v8 40 writeCharToScreen == id
+0x42 v8 41 writeCharToScreen == id
+0x43 v8 82 writeCharToScreen == id
+0x44 v8 83 writeCharToScreen == id
+
+maybeWriteCharToScreen : Int R8 -- +IO
+maybeWriteCharToScreen = $(
+  swap
+  isInsideScreen if(writeCharToScreen, drop2)
+  )
+
+handleScreenOut : M6502 M6502Effect Ram -- M6502 M6502Effect Ram +IO
+handleScreenOut = dip(dup withWrite(id, maybeWriteCharToScreen))
+
+runPetComputer : PETComputer -- PETComputer +IO
+runPetComputer = $(
+  match(petComputer ->
+  dip2(dup showM6502 print)
+  runOneIter
+  handleScreenOut
+  petComputer
+  runPetComputer
+  )
+  )
+
+main : List(Str) -- Int +IO +Panic
+main = $(
+  "test" print
+  unsnoc drop str->path read
+  petComputerFromRam
+  runPetComputer
+  drop
+  "done" print
+  0
+  )
+
+"6502test.hex" nil snoc main == 0
