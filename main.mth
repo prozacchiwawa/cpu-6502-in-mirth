@@ -156,15 +156,13 @@ runPetComputer = $(
   )
   )
 
-# main : List(Str) -- Int +IO +Panic
-# main = $(
-#   "test" print
-#   unsnoc drop str->path read
-#   petComputerFromRam
-#   runPetComputer
-#   drop
-#   "done" print
-#   0
-#   )
-
-# "6502test.hex" nil snoc main == 0
+main : List(Str) -- Int +IO +Panic
+main = $(
+  "test" print
+  unsnoc drop str->path read
+  petComputerFromRam
+  runPetComputer
+  drop
+  "done" print
+  0
+  )

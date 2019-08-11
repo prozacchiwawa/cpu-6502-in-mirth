@@ -971,9 +971,6 @@ writeOutput = cond(isDdDummy? -> drop swap drop fetchPCEffect,
   isDdIndexedIndirectX? -> drop writeIndexedIndirectX,
   drop writeIndirectIndexedY)
 
-pushOutput : R8 M6502 M6502DataDest -- M6502 M6502Effect
-pushOutput = writeOutput
-
 transfer : R8 M6502 M6502DataSource M6502DataDest -- M6502 M6502Effect
 transfer = adjustPCAfterInsn(1) swap drop dip(dip(dup) consumeSetNZFlags) writeOutput
 
@@ -981,7 +978,7 @@ store : R8 M6502 M6502DataSource M6502DataDest -- M6502 M6502Effect
 store = adjustPCAfterInsn(1) swap drop dip(dip(dup) swap drop) writeOutput
 
 pushInst : R8 M6502 M6502DataSource M6502DataDest -- M6502 M6502Effect
-pushInst = adjustPCAfterInsn(1) swap drop dip(dip(dup) swap drop) pushOutput
+pushInst = adjustPCAfterInsn(1) swap drop dip(dip(dup) swap drop) writeOutput
 
 setFlagInt(val : Int) : R8 M6502 M6502DataSource M6502DataDest -- M6502 M6502Effect
 setFlagInt(val) = adjustPCAfterInsn(1) swap drop dip2(val setBitR8) writeOutput
@@ -1146,6 +1143,8 @@ lsrInst = $(
 adcSetFlag(val : Int) : M6502 Bool -- M6502
 adcSetFlag(val) = dip(dup getF6502) val setFlagIf swap setF6502
 
+emptyM6502 dup getFB6502 true setNFlag swap setFB6502 true adcSetFlag(1) getFB6502 == v8zero flgBits true setNFlag true setCFlag
+
 adcGetDFlag : M6502 Int Int Int -- M6502 Bool Int Int Int
 adcGetDFlag = dip3(dup getFB6502 getDFlag)
 
@@ -1155,11 +1154,15 @@ adcMoveAsideResult = dip3(signedToR8 v8 swap)
 adcConsumeFlags : M6502 Bool Bool Bool -- M6502
 adcConsumeFlags = dip2(adcSetFlag(128)) dip(adcSetFlag(1)) adcSetFlag(64)
 
+afterAdcZF : R8 M6502 -- R8 M6502
+afterAdcZF = dup2 drop getR8Int 0 z= dip(dup getFB6502) setZFlag swap setFB6502
+
 adcRun(body : Bool Int Int Int -- Int Bool Bool Bool) : M6502 Int Int Int -- R8 M6502
 adcRun(body) = $(
   adcGetDFlag # M6502 Bool Int Int Int
   body # M6502 Int Bool Bool Bool <- result N C V
   adcMoveAsideResult
+  dip3(afterAdcZF)
   adcConsumeFlags
 )
 
@@ -1230,8 +1233,9 @@ false 0x80 0x01 0 sbcBody == 0x7e false true  true
 true  0x13 0x04 0 sbcBody == 0x08 false true  false
 true  0x13 0x04 1 sbcBody == 0x09 false true  false
 
-afterAdcZF : R8 M6502 -- R8 M6502
-afterAdcZF = dup2 drop getR8Int 0 z= dip(dup getFB6502) setZFlag swap setFB6502
+false 0x00 0x00 1 sbcBody == 0x00 false true  false
+
+v8zero emptyM6502 afterAdcZF getFB6502 getZFlag == v8zero true
 
 adcInst(getReg : M6502 -- R8,run : M6502 Int Int Int -- R8 M6502) : R8 M6502 M6502DataSource M6502DataDest -- M6502 M6502Effect
 adcInst(getReg,run) = $(
@@ -1243,7 +1247,6 @@ adcInst(getReg,run) = $(
       dip(dup getReg getR8Int) # M6502 Int -- M6502 Int Int
     ) # M6502 -- M6502 Int Int Int
   ) swap drop dip(run)
-  dip(afterAdcZF)
   writeOutput
 )
 
@@ -1253,21 +1256,34 @@ cmpConsumeFlags = dip(adcSetFlag(128)) adcSetFlag(1)
 cmpMoveAsideResult : M6502 Int Bool Bool -- R8 M6502 Bool Bool
 cmpMoveAsideResult = dip2(signedToR8 v8 swap)
 
-cmpRun(body : Bool Int Int Int -- Int Bool Bool Bool) : M6502 Int Int Int -- R8 M6502
-cmpRun(body) = $(
+cmpRunPreparation(body : Bool Int Int Int -- Int Bool Bool Bool) : M6502 Int Int Int -- M6502 Int Bool Bool
+cmpRunPreparation(body) = $(
   dip3(false) # Decimal off
   drop 1 # Carry set
   body # M6502 Int Bool Bool Bool <- result N C V
   drop # M6502 Int Bool Bool
+  )
+
+cmpRun(body : Bool Int Int Int -- Int Bool Bool Bool) : M6502 Int Int Int -- R8 M6502
+cmpRun(body) = $(
+  cmpRunPreparation(body)
   cmpMoveAsideResult
+  dip2(afterAdcZF)
   cmpConsumeFlags
 )
+
+emptyM6502 0 0 1 cmpRunPreparation(sbcBody) == emptyM6502 0 false true
+emptyM6502 0 0 1 cmpRunPreparation(sbcBody) cmpMoveAsideResult == v8zero emptyM6502 false true
+emptyM6502 0 0 1 cmpRunPreparation(sbcBody) cmpMoveAsideResult dip2(afterAdcZF) == v8zero emptyM6502 dup getFB6502 true setZFlag swap setFB6502 false true
+emptyM6502 0 0 1 cmpRunPreparation(sbcBody) cmpMoveAsideResult dip2(afterAdcZF) cmpConsumeFlags == v8zero emptyM6502 dup getFB6502 true setZFlag true setCFlag swap setFB6502
+
+emptyM6502 0 0 1 cmpRun(sbcBody) == v8zero emptyM6502 dup getFB6502 true setZFlag true setCFlag swap setFB6502
 
 doBranch : R8 M6502 -- M6502 M6502Effect
 doBranch = swap getR8Int dup 0x7f z> if(256 z-,id) dip(dup getPC6502 getR16Int) z+ 1 z+ v16 swap setPC6502 nextPrefetch noEff
 
 dontBranch : R8 M6502 -- M6502 M6502Effect
-dontBranch = swap drop nextPrefetch noEff
+dontBranch = swap drop nextPrefetch dip(1) incPC6502 noEff
 
 branchBody(getFlag : M6502FlagBits -- Bool) : R8 M6502 M6502DataSource M6502DataDest Bool -- M6502 M6502Effect
 branchBody(getFlag) = $(
@@ -1283,8 +1299,15 @@ branchInst = $(
     dup 1 z= -> drop branchBody(getVFlag), # BVC
     dup 2 z= -> drop branchBody(getCFlag), # BCC
                 drop branchBody(getZFlag)  # BNE
-  )
+  )  
 )
+
+branchInst_(bi : R8 M6502 M6502DataSource M6502DataDest Int Bool -- M6502 M6502Effect) : R8 M6502 M6502DataSource M6502DataDest Int Bool -- M6502 M6502Effect
+branchInst_(bi) = $(
+  dip2(dip2(dup getFB6502 rotr))
+  bi
+  dip(setFB6502)
+  )
 
 doInstructionBody : R8 M6502 M6502DataSource M6502DataDest M6502InstLabel -- M6502 M6502Effect
 doInstructionBody = match(ADC -> adcInst(getA6502, adcRun(adcBody)),
@@ -1292,7 +1315,7 @@ doInstructionBody = match(ADC -> adcInst(getA6502, adcRun(adcBody)),
   ASL -> aslInst,
   BRK -> brkInst,
   BIT -> bitwiseInst(and),
-  Bxx -> branchInst,
+  Bxx -> branchInst_(branchInst),
   CLx -> clrFlag,
   CMP -> drop dd_DUMMY adcInst(getA6502, cmpRun(sbcBody)),
   CPX -> drop dd_DUMMY adcInst(getX6502, cmpRun(sbcBody)),
@@ -1609,7 +1632,7 @@ willExecuteBreakInstruction = $(
 )
 
 untilBRK : M6502 M6502Effect Ram -- M6502 M6502Effect Ram
-untilBRK = willExecuteBreakInstruction if(, runOneIter untilBRK)
+untilBRK = willExecuteBreakInstruction if(id, runOneIter untilBRK)
 
 # Basic micro instruction tests.
 0x80 v8 emptyM6502 setF6502 == v16zero v8zero v8zero v8zero 0xff v8 emptyFlags true setNFlag reset m6502
@@ -1811,3 +1834,43 @@ cpuRTS2 == 0xcdab v16 0x33 v8 v8zero v8zero 1 v8 emptyFlags 0x99 v8 rtsPopLsb m6
 cpuRTS3 : M6502 M6502Effect
 cpuRTS3 = 0xaa v8 cpuRTS2 drop runOneStep
 cpuRTS3 == 0xaa9a v16 0x33 v8 v8zero v8zero 1 v8 emptyFlags fetch m6502 0xaa9a fetchByte
+
+cpuAEq0 : M6502
+cpuAEq0 = v8zero cpuAEq33 setA6502
+
+cmpINST : M6502Instruction
+cmpINST = CMP ds_Imm8 dd_A di
+cpuCMP1 : M6502 M6502Effect
+cpuCMP1 = 0xc9 v8 cpuAEq0 runOneStep
+cpuCMP1 == 0xcdab v16 v8zero v8zero v8zero 255 v8 emptyFlags cmpINST fetchOperand m6502 0xcdac fetchByte
+cpuCMP2 : M6502 M6502Effect
+cpuCMP2 = v8zero cpuCMP1 drop runOneStep
+cpuCMP2 == 0xcdad v16 v8zero v8zero v8zero 255 v8 emptyFlags true setZFlag true setCFlag fetch m6502 0xcdad fetchByte
+
+cpuAEq0WithZF : M6502
+cpuAEq0WithZF = cpuAEq0 dup getFB6502 true setZFlag swap setFB6502
+
+bneINST : M6502Instruction
+bneINST = 3 false Bxx ds_Imm8 dd_DUMMY di
+cpuBNE1 : M6502 M6502Effect
+cpuBNE1 = 0xd0 v8 cpuAEq0WithZF runOneStep
+cpuBNE1 == 0xcdab v16 v8zero v8zero v8zero 255 v8 emptyFlags true setZFlag bneINST fetchOperand m6502 0xcdac fetchByte
+cpuBNE2 : M6502 M6502Effect
+cpuBNE2 = 0x00 v8 cpuBNE1 drop runOneStep
+cpuBNE2 == 0xcdad v16 v8zero v8zero v8zero 255 v8 emptyFlags true setZFlag prefetch m6502 noEff
+
+# beqINST : M6502Instruction
+# beqINST = 3 true Bxx ds_Imm8 dd_DUMMY di
+# cpuBEQ1 : M6502 M6502Effect
+# cpuBEQ1 = 0xf0 v8 cpuAEq0WithZF runOneStep
+# cpuBEQ1 == 0xcdab v16 v8zero v8zero v8zero 255 v8 emptyFlags true setZFlag beqINST fetchOperand m6502 0xcdac fetchByte
+# cpuBEQ2 : M6502 M6502Effect
+# cpuBEQ2 = 0x00 v8 cpuBEQ1 drop runOneStep
+# #
+# # LHS = [('m6502', (), (('v16', (), (52652,)), ('v8', (), (0,)), ('v8', (), (0,)), ('v8', (), (0,)), ('v8', (), (255,)), ('flgBits', (), (('v8', (), (2,)),)), ('prefetch', (), ()))) ('noEff', (), ())]
+# # RHS = [('m6502', (), (('v16', (), (52651,)), ('v8', (), (0,)), ('v8', (), (0,)), ('v8', (), (0,)), ('v8', (), (255,)), ('flgBits', (), (('v8', (), (2,)),)), ('prefetch', (), ()))) ('noEff', (), ())]
+# #
+# cpuBEQ2 == 0xcdac v16 v8zero v8zero v8zero 255 v8 emptyFlags true setZFlag prefetch m6502 noEff
+# cpuBEQB : M6502 M6502Effect
+# cpuBEQB = 0x01 v8 cpuBEQ1 drop runOneStep
+# cpuBEQB == 0xcdad v16 v8zero v8zero v8zero 255 v8 emptyFlags true setZFlag prefetch m6502 noEff

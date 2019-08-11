@@ -230,20 +230,54 @@ afterTestCPXProg : M6502 M6502Effect Ram
 afterTestCPXProg = emptyM6502 noEff testCPXProg untilBRK
 afterTestCPXProg drop drop == 7 v16 4 v8 3 v8 v8zero 0xff v8 emptyFlags true setZFlag true setCFlag fetch m6502
 
-testBEQProg : Ram
-testBEQProg = $(
+testCMPProg0 : Ram
+testCMPProg0 = $(
+  emptyRam
+  0x0000 0x69 v8 rotl byte_to_ram
+  0x0001 0x01 v8 rotl byte_to_ram
+  0x0002 0xc9 v8 rotl byte_to_ram
+  0x0003 0x05 v8 rotl byte_to_ram
+  0x0004 0xd0 v8 rotl byte_to_ram
+  0x0005 0xfa v8 rotl byte_to_ram
+  )
+afterTestCMPProg0 : M6502 M6502Effect Ram
+afterTestCMPProg0 = emptyM6502 noEff testCMPProg0 untilBRK
+afterTestCMPProg0 drop drop == 6 v16 5 v8 v8zero v8zero 0xff v8 emptyFlags true setZFlag true setCFlag fetch m6502
+
+testBEQProg0 : Ram
+testBEQProg0 = $(
+  emptyRam
+  0x0000 0xa2 v8 rotl byte_to_ram
+  0x0001 0x00 v8 rotl byte_to_ram
+  0x0002 0xf0 v8 rotl byte_to_ram
+  0x0003 0x00 v8 rotl byte_to_ram
+  )
+afterTestBEQProg0 : M6502 M6502Effect Ram
+afterTestBEQProg0 = emptyM6502 noEff testBEQProg0 untilBRK
+afterTestBEQProg0 drop drop == 4 v16 v8zero v8zero v8zero 0xff v8 emptyFlags true setZFlag fetch m6502
+
+testCMPProg1 : Ram
+testCMPProg1 = $(
   emptyRam
   0x0000 0xa9 v8 rotl byte_to_ram
-  0x0001 0x00 v8 rotl byte_to_ram
-  0x0002 0xaa v8 rotl byte_to_ram
-  0x0003 0x69 v8 rotl byte_to_ram
-  0x0004 0x01 v8 rotl byte_to_ram
-  0x0005 0xc9 v8 rotl byte_to_ram
-  0x0006 0x05 v8 rotl byte_to_ram
-  0x0007 0xd0 v8 rotl byte_to_ram
-  0x0008 0xfa v8 rotl byte_to_ram
+  0x0001 0x05 v8 rotl byte_to_ram
+  0x0002 0xc9 v8 rotl byte_to_ram
+  0x0003 0x05 v8 rotl byte_to_ram
   )
 
-afterTestBEQProg : M6502 M6502Effect Ram
-afterTestBEQProg = emptyM6502 noEff testBEQProg untilBRK
-afterTestBEQProg drop drop == 9 v16 5 v8 v8zero v8zero 0xff v8 emptyFlags true setZFlag true setCFlag fetch m6502
+afterTestCMPProg1 : M6502 M6502Effect Ram
+afterTestCMPProg1 = emptyM6502 noEff testCMPProg1 untilBRK
+afterTestCMPProg1 drop drop == 4 v16 5 v8 v8zero v8zero 0xff v8 emptyFlags true setZFlag true setCFlag fetch m6502
+
+testBEQFlags0 : Ram
+testBEQFlags0 = $(
+  emptyRam
+  0x0000 0xa2 v8 rotl byte_to_ram
+  0x0001 0x00 v8 rotl byte_to_ram
+  0x0002 0xf0 v8 rotl byte_to_ram
+  0x0003 0x01 v8 rotl byte_to_ram
+  )
+
+afterTestBEQFlags0 : M6502 M6502Effect Ram
+afterTestBEQFlags0 = emptyM6502 noEff testBEQFlags0 untilBRK
+afterTestBEQFlags0 drop drop == 5 v16 v8zero v8zero v8zero 0xff v8 emptyFlags true setZFlag fetch m6502
